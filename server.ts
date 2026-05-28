@@ -199,9 +199,7 @@ app.post('/api/add-official-shayari', (req, res) => {
 
 // Dynamic robots.txt
 app.get('/robots.txt', (req, res) => {
-  const host = req.get('host') || 'roynorules.com';
-  const protocol = req.secure ? 'https' : 'http';
-  const origin = `${protocol}://${host}`;
+  const origin = 'https://royversehub.netlify.app';
 
   res.header('Content-Type', 'text/plain');
   res.send(`User-agent: *
@@ -213,9 +211,7 @@ Sitemap: ${origin}/sitemap.xml
 
 // Dynamic sitemap.xml
 app.get('/sitemap.xml', (req, res) => {
-  const host = req.get('host') || 'roynorules.com';
-  const protocol = req.secure ? 'https' : 'http';
-  const origin = `${protocol}://${host}`;
+  const origin = 'https://royversehub.netlify.app';
 
   // Collect all approved shayaris (Default + Community approved)
   const allApproved = [...defaultShayaris, ...db.approved];
@@ -278,6 +274,18 @@ app.get('/sitemap.xml', (req, res) => {
     <lastmod>${lastmod}</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
+  </url>`;
+  });
+
+  // 6. Creator Portfolio pages
+  const defaultCreators = ['roynorules', 'KabirSpeaks', 'AadyaRoy', 'RitikRai'];
+  defaultCreators.forEach(c => {
+    xml += `
+  <url>
+    <loc>${origin}/creator/${c}</loc>
+    <lastmod>${lastmod}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
   </url>`;
   });
 
