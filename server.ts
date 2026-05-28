@@ -24,6 +24,12 @@ const PORT = 3000;
 
 app.use(express.json());
 
+// Search Console Verification
+app.get('/google59b50fef3e93f851.html', (req, res) => {
+  res.setHeader('Content-Type', 'text/html');
+  res.send('google-site-verification: google59b50fef3e93f851.html');
+});
+
 const DB_FILE_PATH = path.join(process.cwd(), 'server_db.json');
 
 // Memory cache of server-side community submissions
@@ -310,7 +316,7 @@ function generateSeoHtml(template: string, requestPath: string, host: string, pr
     description = 'Intellectual property and copyright claims disclaimers for fan-made shayaris.';
   } else if (cleanPath === '/contact-us') {
     title = 'Contact Us Direct | Roy No Rules';
-    description = 'Get in touch with us at +91 9027671630 or email roynorules@gmail.com for support.';
+    description = 'Get in touch with us at +91 9027671630 or email roynoruless@gmail.com for support.';
   } else {
     // Check if it's a category or shayari page or creator
     const segments = cleanPath.split('/').filter(Boolean);

@@ -311,7 +311,7 @@ export default function App() {
           break;
         case '/contact-us':
           title = 'Contact Us Direct | Roy No Rules';
-          description = 'Get in touch with us at +91 9027671630 or email roynorules@gmail.com for support.';
+          description = 'Get in touch with us at +91 9027671630 or email roynoruless@gmail.com for support.';
           break;
       }
       canonical = domain + currentTrustPath;

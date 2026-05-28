@@ -22,6 +22,7 @@ export default function TrustPages({ activePath, onNavigate, onClose }: TrustPag
   const [form, setForm] = useState<ContactFormState>({ name: '', email: '', subject: 'Shayari Upload/Inquiry', message: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   
   // Custom states for contact support ticket log
   const [activeTicketCount, setActiveTicketCount] = useState(() => {
@@ -52,7 +53,7 @@ export default function TrustPages({ activePath, onNavigate, onClose }: TrustPag
         break;
       case '/contact-us':
         seoTitle = 'Connect With Us Directly - Roy No Rules...';
-        seoDesc = 'Need a personal touch? Ring us at +91 9027671630 or write to roynorules@gmail.com for fast support.';
+        seoDesc = 'Need a personal touch? Ring us at +91 9027671630 or write to roynoruless@gmail.com for fast support.';
         break;
     }
 
@@ -68,21 +69,43 @@ export default function TrustPages({ activePath, onNavigate, onClose }: TrustPag
     metaDesc.setAttribute('content', seoDesc);
   }, [activePath]);
 
-  const handleContactSubmit = (e: React.FormEvent) => {
+  const handleContactSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.email || !form.message) return;
 
     setIsSubmitting(true);
-    
-    setTimeout(() => {
+    setSubmitError(null);
+
+    try {
+      const response = await fetch('https://formspree.io/f/xzdworly', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          subject: form.subject,
+          message: form.message
+        })
+      });
+
+      if (response.ok) {
+        setIsSubmitting(false);
+        setSubmitSuccess(true);
+        setForm({ name: '', email: '', subject: 'Feedback', message: '' });
+        setActiveTicketCount(prev => prev + 1);
+        
+        // Auto reset success state after 7 seconds
+        setTimeout(() => setSubmitSuccess(false), 7000);
+      } else {
+        throw new Error('Formspree response not ok');
+      }
+    } catch (err) {
       setIsSubmitting(false);
-      setSubmitSuccess(true);
-      setForm({ name: '', email: '', subject: 'Feedback', message: '' });
-      setActiveTicketCount(prev => prev + 1);
-      
-      // Auto reset success state after 5 seconds
-      setTimeout(() => setSubmitSuccess(false), 5000);
-    }, 1200);
+      setSubmitError('Transmission failed. Try again.');
+    }
   };
 
   return (
@@ -330,7 +353,7 @@ export default function TrustPages({ activePath, onNavigate, onClose }: TrustPag
                       2. Copyright Responsibilities
                     </h4>
                     <p>
-                      Users submitting poetry or quotes represent that they hold the copyrights or are quoting with legal consent and attribution to the original writers. If any piece infringes your legal intellectual copyright, write to us directly at roynorules@gmail.com with reasonable evidence, and we will take immediate prompt actions under standard DMCA rules.
+                      Users submitting poetry or quotes represent that they hold the copyrights or are quoting with legal consent and attribution to the original writers. If any piece infringes your legal intellectual copyright, write to us directly at roynoruless@gmail.com with reasonable evidence, and we will take immediate prompt actions under standard DMCA rules.
                     </p>
 
                     <h4 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
@@ -442,7 +465,7 @@ export default function TrustPages({ activePath, onNavigate, onClose }: TrustPag
                         </span>
                         <div>
                           <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider block">OFFICIAL EMAIL SUPPORT</span>
-                          <span className="text-sm font-black text-white mt-0.5 block">roynorules@gmail.com</span>
+                          <span className="text-sm font-black text-white mt-0.5 block">roynoruless@gmail.com</span>
                           <span className="text-[10px] text-zinc-400 mt-1 block">Write to us for partnerships, reports or licensing</span>
                         </div>
                       </div>
@@ -476,7 +499,7 @@ export default function TrustPages({ activePath, onNavigate, onClose }: TrustPag
                               <CheckCircle size={24} className="animate-pulse" />
                             </span>
                             <div className="space-y-1">
-                              <h4 className="text-sm font-black text-white uppercase tracking-wider">MESSAGE TRANSMITTED SECURELY</h4>
+                              <h4 className="text-sm font-black text-white uppercase tracking-wider">Message transmitted successfully 👀🔥</h4>
                               <p className="text-xs text-zinc-500 max-w-xs mx-auto leading-relaxed">
                                 Thank you for connecting with "Roy No Rules...". Our support team will verify your query and follow back within 2 hours.
                               </p>
@@ -489,7 +512,13 @@ export default function TrustPages({ activePath, onNavigate, onClose }: TrustPag
                             </button>
                           </motion.div>
                         ) : (
-                          <form onSubmit={handleContactSubmit} className="space-y-4 text-left">
+                          <form action="https://formspree.io/f/xzdworly" method="POST" onSubmit={handleContactSubmit} className="space-y-4 text-left">
+                            {submitError && (
+                              <div className="p-3 bg-red-950/20 border border-red-500/20 rounded-xl text-red-500 font-bold font-mono text-xs text-center">
+                                {submitError}
+                              </div>
+                            )}
+
                             <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider font-bold block mb-1">
                               SECURE INQUIRY TICKETING (ACTIVE QUEUE: #{activeTicketCount})
                             </span>
