@@ -1,0 +1,6 @@
+{
+  "name": "Roy No Rules...",
+  "description": "A premium dark Hindi and Hinglish Shayari portal with free browser-based Speech Synthesis recitation and immersive procedural ambient music.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
