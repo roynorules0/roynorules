@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   X, BarChart3, BookOpen, Users, ShieldAlert, ShieldCheck, Megaphone, 
   Settings, Globe, Mail, Plus, Trash2, Check, RefreshCw, Layers,
-  Search, Menu, ExternalLink, HelpCircle, ArrowRight, Zap, Play, Grid
+  Search, Menu, ExternalLink, HelpCircle, ArrowRight, Zap, Play, Grid, Send,
+  Eye, EyeOff
 } from 'lucide-react';
 import { Shayari, Category, User } from '../types';
 import { 
@@ -22,6 +23,7 @@ interface AdminPanelProps {
   onDeclineShayari: (id: string) => void;
   onAddCategory: (name: string) => void;
   onClose: () => void;
+  initialTab?: 'analytics' | 'manage_shayari' | 'users' | 'block_unblock' | 'ads' | 'settings' | 'seo' | 'messages' | 'mood' | 'telegram';
 }
 
 // Simulated feedback inbox message item type
@@ -74,10 +76,18 @@ export default function AdminPanel({
   onApproveShayari,
   onDeclineShayari,
   onAddCategory,
-  onClose
+  onClose,
+  initialTab
 }: AdminPanelProps) {
   // Navigation active tab
-  const [activeTab, setActiveTab] = useState<'analytics' | 'manage_shayari' | 'users' | 'block_unblock' | 'ads' | 'settings' | 'seo' | 'messages' | 'mood'>('analytics');
+  const [activeTab, setActiveTab] = useState<'analytics' | 'manage_shayari' | 'users' | 'block_unblock' | 'ads' | 'settings' | 'seo' | 'messages' | 'mood' | 'telegram'>(initialTab || 'analytics');
+  
+  // Sync tab with initialTab prop updates
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
   
   // Side Drawer / Sidebar Toggle
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -100,6 +110,144 @@ export default function AdminPanel({
   // Category managing form states
   const [addCatName, setAddCatName] = useState('');
 
+  // Telegram states
+  const [telegramToken, setTelegramToken] = useState('');
+  const [telegramChatId, setTelegramChatId] = useState('');
+  const [telegramEnabled, setTelegramEnabled] = useState(false);
+  const [telegramLogs, setTelegramLogs] = useState<any[]>([]);
+  const [isTelegramLoading, setIsTelegramLoading] = useState(false);
+  const [isTelegramSaving, setIsTelegramSaving] = useState(false);
+  const [isTelegramTesting, setIsTelegramTesting] = useState(false);
+  const [tgTestError, setTgTestError] = useState('');
+  const [hasSavedToken, setHasSavedToken] = useState(false);
+  
+  // Show / Hide toggle state and detailed save success state
+  const [showToken, setShowToken] = useState(false);
+  const [saveResult, setSaveResult] = useState<{
+    success: boolean;
+    tokenLength: number;
+    validationStatus: {
+      valid: boolean;
+      botName?: string;
+      error?: string;
+    };
+  } | null>(null);
+
+  // Channel verification states (Requirements 1, 2, 3, 5, 6, 7)
+  const [isTelegramVerifyingChannel, setIsTelegramVerifyingChannel] = useState(false);
+  const [verifiedChannelResult, setVerifiedChannelResult] = useState<any>(null);
+  const [channelVerifyError, setChannelVerifyError] = useState('');
+
+  const fetchTelegramConfig = async () => {
+    setIsTelegramLoading(true);
+    try {
+      const res = await fetch('/api/telegram-config');
+      if (res.ok) {
+        const data = await res.json();
+        setTelegramToken(data.botToken || '');
+        setTelegramChatId(data.chatId || '');
+        setTelegramEnabled(!!data.enabled);
+        setTelegramLogs(data.logs || []);
+        setHasSavedToken(data.hasToken || false);
+      }
+    } catch (err) {
+      console.error('Error fetching telegram config:', err);
+    } finally {
+      setIsTelegramLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'telegram') {
+      fetchTelegramConfig();
+    }
+  }, [activeTab]);
+
+  const handleSaveTelegramConfig = async () => {
+    setIsTelegramSaving(true);
+    setSaveResult(null);
+    try {
+      const res = await fetch('/api/telegram-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          botToken: telegramToken,
+          chatId: telegramChatId,
+          enabled: telegramEnabled
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSaveResult(data);
+        alert('📢 Telegram configuration successfully saved & verified!');
+        fetchTelegramConfig();
+      } else {
+        alert('❌ Failed to save Telegram configuration.');
+      }
+    } catch (err: any) {
+      alert('❌ Error saving configuration: ' + err?.message);
+    } finally {
+      setIsTelegramSaving(false);
+    }
+  };
+
+  const handleTestTelegramConnection = async () => {
+    setIsTelegramTesting(true);
+    setTgTestError('');
+    try {
+      const res = await fetch('/api/telegram-test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          botToken: telegramToken,
+          chatId: telegramChatId
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        alert(`✅ Test Message Broadcasted Successfully!\n\nDetails:\nChannel Name: ${data.chat?.title || telegramChatId}\nResolved Unique ID: ${data.chat?.id || 'N/A'}\nYour Telegram Automation link has been loaded and locked in!`);
+        fetchTelegramConfig();
+      } else {
+        setTgTestError(data.error || 'Connection Failed');
+        alert('❌ Connection Failed: ' + (data.error || 'Check Bot Token and Chat ID.'));
+      }
+    } catch (err: any) {
+      setTgTestError(err?.message || 'Connection Failed');
+      alert('❌ Error testing connection: ' + err?.message);
+    } finally {
+      setIsTelegramTesting(false);
+    }
+  };
+
+  const handleVerifyTelegramChannel = async () => {
+    setIsTelegramVerifyingChannel(true);
+    setChannelVerifyError('');
+    setVerifiedChannelResult(null);
+    try {
+      const res = await fetch('/api/telegram-verify-channel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          botToken: telegramToken,
+          chatId: telegramChatId
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setVerifiedChannelResult(data.chat);
+        alert(`✅ Channel Verified Successfully!\n\nResolved Title: ${data.chat.title || 'No Title'}\nID: ${data.chat.id}\nUsername: ${data.chat.username ? '@' + data.chat.username : 'N/A'}`);
+      } else {
+        setChannelVerifyError(data.error || 'Verification Failed');
+        alert('❌ Channel Verification Failed: ' + (data.error || 'Check Bot Token, Chat ID, and system administrative scopes.'));
+      }
+    } catch (err: any) {
+      setChannelVerifyError(err?.message || 'Verification Failed');
+      alert('❌ Error verifying channel: ' + err?.message);
+    } finally {
+      setIsTelegramVerifyingChannel(false);
+    }
+  };
+
   // Loaded upon render
   useEffect(() => {
     refreshData();
@@ -108,6 +256,19 @@ export default function AdminPanel({
   const refreshData = () => {
     setUserList(getUsers());
     setActivityLogs(getActivityLogs());
+
+    // Load real submitted contact messages from local storage
+    const stored = localStorage.getItem('roynorules_support_messages');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        setSupportMessages([...parsed, ...DEFAULT_MESSAGES]);
+      } catch (err) {
+        setSupportMessages(DEFAULT_MESSAGES);
+      }
+    } else {
+      setSupportMessages(DEFAULT_MESSAGES);
+    }
   };
 
   // Block/unblock triggers
@@ -340,6 +501,19 @@ export default function AdminPanel({
                   <span>🎭 Mood System Config</span>
                 </button>
 
+                {/* 10. Telegram Automation */}
+                <button
+                  onClick={() => setActiveTab('telegram')}
+                  className={`flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-semibold w-full text-left transition-all ${
+                    activeTab === 'telegram'
+                      ? 'bg-red-950/20 border border-red-500/35 text-red-500 shadow-[0_4px_12px_rgba(239,68,68,0.06)]'
+                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40'
+                  }`}
+                >
+                  <Send size={15} />
+                  <span>📢 Telegram Automation</span>
+                </button>
+
               </nav>
             </div>
 
@@ -385,6 +559,7 @@ export default function AdminPanel({
                 {activeTab === 'seo' && '📈 SEO & Canonical indexing'}
                 {activeTab === 'messages' && '📩 Resident Direct Support Mailbox'}
                 {activeTab === 'mood' && '🎭 Atmospheres Mood System Matrix'}
+                {activeTab === 'telegram' && '📢 Telegram Automation & Logs'}
               </h2>
             </div>
           </div>
@@ -1093,6 +1268,331 @@ export default function AdminPanel({
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* 10. TELEGRAM AUTOMATION WORKSPACE */}
+          {activeTab === 'telegram' && (
+            <div className="space-y-6 animate-fade-in text-left">
+              
+              {/* Telegram Connection & Config Box */}
+              <div className="bg-zinc-900/10 border border-zinc-900 p-5 rounded-2xl space-y-4">
+                <span className="text-[10px] font-mono text-zinc-550 uppercase tracking-widest block">TELEGRAM HUB CHANNEL AUTOMATION</span>
+                <h3 className="text-sm font-black text-white uppercase font-sans">Telegram Bot & Channel Settings</h3>
+
+                <p className="text-xs text-zinc-400 leading-relaxed font-sans max-w-3xl">
+                  Automate posting to your Telegram channel <strong>@royversehub</strong>. Provide your Telegram Bot Token and Channel Chat ID below. The Bot Token is encrypted and stored securely server-side.
+                </p>
+
+                {isTelegramLoading ? (
+                  <div className="text-center py-6">
+                    <span className="text-xs font-mono text-zinc-500 uppercase tracking-wider animate-pulse">Loading Telegram Configuration...</span>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Bot Token with Eye Icon */}
+                      <div className="space-y-1.5 text-left">
+                        <label className="text-[10px] font-mono font-bold text-zinc-400 uppercase">Telegram Bot Token</label>
+                        <div className="relative">
+                          <input
+                            type={showToken ? 'text' : 'password'}
+                            value={telegramToken}
+                            onChange={(e) => setTelegramToken(e.target.value)}
+                            placeholder="e.g. 1234567890:ABC-XYZ_YourBotToken"
+                            className="w-full bg-zinc-950 border border-zinc-900 focus:border-red-500/40 outline-none text-zinc-200 text-xs pl-3.5 pr-10 py-2.5 rounded-xl transition font-mono"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowToken(!showToken)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-350 transition active:scale-90 cursor-pointer"
+                            title={showToken ? 'Hide token string' : 'Show token string'}
+                          >
+                            {showToken ? <EyeOff size={15} /> : <Eye size={15} />}
+                          </button>
+                        </div>
+                        <span className="text-[9px] text-zinc-550 block leading-tight mt-0.5">
+                          Supports tokens of any length (&gt;100 chars). Preserves all symbol types like ":", "-", and "_".
+                        </span>
+                      </div>
+
+                      {/* Chat ID */}
+                      <div className="space-y-1.5 text-left">
+                        <label className="text-[10px] font-mono font-bold text-zinc-400 uppercase">Telegram Channel / Chat ID</label>
+                        <input
+                          type="text"
+                          value={telegramChatId}
+                          onChange={(e) => setTelegramChatId(e.target.value)}
+                          placeholder="e.g. @royversehub or -100123456789"
+                          className="w-full bg-zinc-950 border border-zinc-900 focus:border-red-500/40 outline-none text-zinc-200 text-xs px-3.5 py-2.5 rounded-xl transition font-mono"
+                        />
+                        <span className="text-[9px] text-zinc-550 block leading-tight mt-0.5">
+                          Must start with <strong>@</strong> for public channels, or standard channel integer ID formats.
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Enable Toggle and Action Controls */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-3 border-t border-zinc-900/50">
+                      <div className="flex items-center gap-3 select-none">
+                        <button
+                          type="button"
+                          onClick={() => setTelegramEnabled(!telegramEnabled)}
+                          className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                            telegramEnabled ? 'bg-emerald-600' : 'bg-zinc-800'
+                          }`}
+                        >
+                          <span
+                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                              telegramEnabled ? 'translate-x-5' : 'translate-x-0'
+                            }`}
+                          />
+                        </button>
+                        <div className="text-left font-mono">
+                          <span className="text-xs font-bold text-zinc-300 block leading-tight text-white">Enable Auto Post</span>
+                          <span className="text-[9.5px] text-zinc-550 block mt-0.5">Automatically posts to Telegram upon approving or adding new Shayari</span>
+                        </div>
+                      </div>
+
+                      {/* Control Buttons */}
+                      <div className="flex flex-wrap items-center gap-2 select-none">
+                        <button
+                          type="button"
+                          disabled={isTelegramVerifyingChannel}
+                          onClick={handleVerifyTelegramChannel}
+                          className="px-4 py-2.5 bg-zinc-950 hover:bg-zinc-900 disabled:opacity-50 border border-zinc-900 text-zinc-300 text-[10px] font-mono uppercase font-bold rounded-xl transition cursor-pointer active:scale-95 flex items-center gap-1.5"
+                          title="Verify channel administrative access & automatically resolve channel username details"
+                        >
+                          {isTelegramVerifyingChannel ? 'Verifying...' : 'Verify Channel 🔎'}
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={isTelegramTesting}
+                          onClick={handleTestTelegramConnection}
+                          className="px-4 py-2.5 bg-zinc-950 hover:bg-zinc-900 disabled:opacity-50 border border-zinc-900 text-zinc-300 text-[10px] font-mono uppercase font-bold rounded-xl transition cursor-pointer active:scale-95 flex items-center gap-1.5"
+                        >
+                          {isTelegramTesting ? 'Sending...' : 'Send Test Message ⚡'}
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={isTelegramSaving}
+                          onClick={handleSaveTelegramConfig}
+                          className="px-4 py-2.5 bg-gradient-to-r from-red-650 to-rose-700 disabled:opacity-50 text-white text-[10px] font-mono uppercase font-black tracking-widest rounded-xl transition cursor-pointer active:scale-95 flex items-center gap-1.5"
+                        >
+                          {isTelegramSaving ? 'Saving...' : 'Save Settings'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Channel Verification Report Card (Requirement 1, 2, 3, 5, 7) */}
+                    {(verifiedChannelResult || channelVerifyError) && (
+                      <div className="mt-3 p-4 bg-zinc-950 border border-zinc-900 rounded-xl space-y-3 relative text-left select-text">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex h-2 w-2 rounded-full ${verifiedChannelResult ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-red-500 animate-pulse'}`} />
+                            <span className="text-[10px] font-bold font-mono tracking-widest text-zinc-400 uppercase">Telegram Channel Metadata Report</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => { setVerifiedChannelResult(null); setChannelVerifyError(''); }}
+                            className="text-zinc-500 hover:text-zinc-400 text-[10px] font-mono hover:underline cursor-pointer"
+                          >
+                            [Dismiss]
+                          </button>
+                        </div>
+
+                        {verifiedChannelResult ? (
+                          <div className="bg-zinc-900/40 p-3 rounded-lg border border-red-500/10 space-y-2 font-mono text-zinc-300">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                              <div>
+                                <span className="text-[9px] text-zinc-500 block uppercase font-bold">Resolved Channel ID 🔒</span>
+                                <span className="text-[11px] text-emerald-400 block break-words select-all font-bold">{verifiedChannelResult.id}</span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-zinc-500 block uppercase font-bold">Title Name</span>
+                                <span className="text-[11px] text-zinc-100 block font-bold truncate">{verifiedChannelResult.title || 'Untitled Channel'}</span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-zinc-500 block uppercase font-bold">Username Accent</span>
+                                <span className="text-[11px] text-zinc-300 block">
+                                  {verifiedChannelResult.username ? `@${verifiedChannelResult.username}` : 'No username attribute'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-[9px] text-zinc-500 block uppercase font-bold">Communication Scope</span>
+                                <span className="text-[11px] text-zinc-400 block uppercase font-bold">{verifiedChannelResult.type || 'N/A'}</span>
+                              </div>
+                            </div>
+                            {verifiedChannelResult.description && (
+                              <div className="pt-2 border-t border-zinc-900 text-[10.5px]">
+                                <span className="text-[9px] text-zinc-550 uppercase block">Short Bio Details</span>
+                                <p className="text-zinc-400 font-sans italic line-clamp-3 mt-0.5">{verifiedChannelResult.description}</p>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="bg-red-955/10 border border-red-900/20 p-3 rounded-lg text-left text-xs font-mono select-text text-red-400">
+                            <span className="text-[9px] text-red-500 uppercase block font-bold">Telegram API Error Code</span>
+                            <p className="mt-1 leading-relaxed text-red-300 font-sans tracking-wide">
+                              {channelVerifyError}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Detailed Save & Verification Results Display (Requirement 5 & 6) */}
+                    {saveResult && (
+                      <div className="mt-3 p-4 bg-zinc-950 border border-zinc-900 rounded-xl space-y-3 relative text-left select-text">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className={`inline-flex h-2 w-2 rounded-full ${saveResult.success ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : 'bg-red-500 animate-pulse'}`} />
+                            <span className="text-[10px] font-bold font-mono tracking-widest text-zinc-400 uppercase">Save & Verification Feedback Ledger</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSaveResult(null)}
+                            className="text-zinc-550 hover:text-zinc-400 text-[10px] font-mono hover:underline cursor-pointer"
+                          >
+                            [Dismiss]
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          {/* Column 1: Save Outcome */}
+                          <div className="bg-zinc-900/30 p-3 rounded-lg border border-zinc-900/60 font-mono">
+                            <span className="text-[9px] text-zinc-500 uppercase block font-bold">Action Result</span>
+                            <span className={`text-[11px] font-black mt-1 block ${saveResult.success ? 'text-emerald-400 font-sans' : 'text-red-400 font-sans'}`}>
+                              {saveResult.success ? 'Token Saved Successfully ✅' : 'Failed to save token ❌'}
+                            </span>
+                          </div>
+
+                          {/* Column 2: Exact Token Length */}
+                          <div className="bg-zinc-900/30 p-3 rounded-lg border border-zinc-900/60 font-mono">
+                            <span className="text-[9px] text-zinc-500 uppercase block font-bold">Stored Token Length</span>
+                            <span className="text-[11px] font-black mt-1 text-zinc-300 block">
+                              {saveResult.tokenLength} characters
+                            </span>
+                          </div>
+
+                          {/* Column 3: Token Validation Status */}
+                          <div className="bg-zinc-900/30 p-3 rounded-lg border border-zinc-900/60 font-mono">
+                            <span className="text-[9px] text-zinc-500 uppercase block font-bold">Token Validation Status</span>
+                            {saveResult.validationStatus?.valid ? (
+                              <div className="mt-1 leading-tight">
+                                <span className="text-[11px] font-black text-emerald-400 block font-sans">Verified Bot Connection 🔒</span>
+                                <span className="text-[9px] text-zinc-450 block mt-0.5 mt-0.5 font-mono">
+                                  Bot: @{saveResult.validationStatus.botName}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="mt-1 leading-tight">
+                                <span className="text-[11px] font-black text-rose-400 block font-sans">Validation Failed ⚠️</span>
+                                {saveResult.validationStatus?.error && (
+                                  <span className="text-[9px] text-rose-500 block leading-tight mt-0.5 mt-0.5 font-mono select-text truncate" title={saveResult.validationStatus.error}>
+                                    {saveResult.validationStatus.error}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Connection indicators */}
+                    {tgTestError && (
+                      <div className="p-3 bg-red-955/10 border border-red-950/20 rounded-xl text-left font-mono text-[10.5px] text-red-400 select-text">
+                        ❌ Connection Failed: {tgTestError}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Telegram Automation Logs */}
+              <div className="bg-zinc-900/10 border border-zinc-900 p-5 rounded-2xl space-y-4">
+                <div className="flex items-center justify-between border-b border-zinc-900 pb-2 mb-2 select-none">
+                  <div className="text-left">
+                    <span className="text-[10px] font-mono text-zinc-550 uppercase tracking-widest block">TELEGRAM AUTOMATION LEDGER</span>
+                    <h3 className="text-sm font-black text-white uppercase font-sans mt-0.5">Integration Activity Logs</h3>
+                  </div>
+                  <button
+                    onClick={fetchTelegramConfig}
+                    className="p-1 px-2.5 rounded-lg bg-zinc-950 hover:bg-zinc-900 border border-zinc-900 text-[10px] font-mono text-zinc-400 flex items-center gap-1 active:scale-95 cursor-pointer transition uppercase"
+                  >
+                    <RefreshCw size={10} className={isTelegramLoading ? 'animate-spin' : ''} />
+                    <span>Refresh Logs</span>
+                  </button>
+                </div>
+
+                <p className="text-xs text-zinc-400 leading-relaxed font-sans select-none">
+                  A trace timeline of all dispatch jobs requested or finished. Auto-blocking systems ensure identical posts are blocked to respect channel stream aesthetics.
+                </p>
+
+                {telegramLogs.length === 0 ? (
+                  <div className="text-center py-12 border border-dashed border-zinc-900 rounded-xl">
+                    <span className="text-xl">📢</span>
+                    <h5 className="text-xs font-mono text-zinc-550 uppercase mt-2">No activity logged yet</h5>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {telegramLogs.map((log: any) => (
+                      <div
+                        key={log.id}
+                        className="p-3.5 bg-zinc-950 border border-zinc-900 rounded-xl font-mono text-xs text-zinc-300 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:border-zinc-850 transition"
+                      >
+                        <div className="flex-1 min-w-0 text-left space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[9.5px] font-bold text-zinc-500 uppercase">{log.category}</span>
+                            <span className="text-[9px] text-zinc-550">{new Date(log.timestamp).toLocaleString()}</span>
+                            {log.getChatResponse && (
+                              <span className="text-[8.5px] text-emerald-400 bg-emerald-950/20 px-1.5 py-0.5 rounded border border-emerald-500/10 font-bold font-sans" title={`ID: ${log.getChatResponse.id}`}>
+                                Channel: {log.getChatResponse.title || 'Verified'} {log.getChatResponse.username ? `(@${log.getChatResponse.username})` : ''}
+                              </span>
+                            )}
+                            {log.approvalId && (
+                              <span className="text-[8.5px] text-amber-400 bg-amber-950/20 px-1.5 py-0.5 rounded border border-amber-500/10 font-bold font-sans" title="Generated Approval pipeline identifier">
+                                Appr ID: {log.approvalId}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-zinc-400 text-xs font-sans line-clamp-1 italic select-text">
+                            "{log.shayariText}"
+                          </p>
+                        </div>
+
+                        {/* Status elements */}
+                        <div className="flex items-center gap-2 self-start md:self-auto shrink-0 select-none">
+                          {log.status === 'Sent' && (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-emerald-950/20 border border-emerald-500/35 text-emerald-500 text-[9px] font-extrabold uppercase uppercase tracking-wider">
+                              <Check size={11} />
+                              Sent
+                            </span>
+                          )}
+                          {log.status === 'Failed' && (
+                            <div className="flex flex-col items-end">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-red-955/10 border border-red-500/35 text-red-500 text-[9px] font-extrabold uppercase uppercase tracking-wider">
+                                <X size={11} />
+                                Failed
+                              </span>
+                              {log.error && <span className="text-[8.5px] text-red-400 mt-1 max-w-[200px] truncate" title={log.error}>{log.error}</span>}
+                            </div>
+                          )}
+                          {log.status === 'Pending' && (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-amber-950/20 border border-amber-500/35 text-amber-500 text-[9px] font-extrabold uppercase animate-pulse tracking-wider">
+                              <RefreshCw size={10} className="animate-spin" />
+                              Pending
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

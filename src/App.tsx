@@ -1,32 +1,43 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, Heart, Plus, ShieldCheck, Check, Info, Award, Calendar, Clock, RefreshCw, Compass, Menu, Search, MessageSquare, Lock, User as UserIcon, ArrowRight } from 'lucide-react';
+import { 
+  Sparkles, Heart, Plus, ShieldCheck, Check, Info, Award, Calendar, 
+  Clock, RefreshCw, Compass, Menu, Search, MessageSquare, Lock, 
+  User as UserIcon, ArrowRight, MoreVertical, BarChart2, Trash2, 
+  Layers, ShieldAlert, TrendingUp, Mail, Globe, DollarSign, LogOut, Edit3,
+  Users
+} from 'lucide-react';
 
 import { Shayari, User } from './types';
 import { defaultShayaris, defaultCategories } from './data/defaultShayaris';
 import ParticlesBg from './components/ParticlesBg';
 import CategorySlider from './components/CategorySlider';
 import ShayariCard from './components/ShayariCard';
-import SubmitModal from './components/SubmitModal';
-import AdminPanel from './components/AdminPanel';
+
+// Lazy load large/route components for code-splitting
+const SubmitModal = lazy(() => import('./components/SubmitModal'));
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
+const ImageGeneratorModal = lazy(() => import('./components/ImageGeneratorModal'));
+const VoiceShayariPlayer = lazy(() => import('./components/VoiceShayariPlayer'));
+const AuthModal = lazy(() => import('./components/AuthModal'));
+const UserProfileModal = lazy(() => import('./components/UserProfileModal'));
+const ImmersiveReadingMode = lazy(() => import('./components/ImmersiveReadingMode'));
+const TrustPages = lazy(() => import('./components/TrustPages'));
+const CreateHubModal = lazy(() => import('./components/CreateHubModal'));
+const MoodPostModal = lazy(() => import('./components/MoodPostModal'));
+
 import AdminUnlockPopup from './components/AdminUnlockPopup';
-import ImageGeneratorModal from './components/ImageGeneratorModal';
-import VoiceShayariPlayer from './components/VoiceShayariPlayer';
 import MoodSelector, { MOODS_METADATA } from './components/MoodSelector';
 import SearchByFeeling from './components/SearchByFeeling';
 import IntroScreen from './components/IntroScreen';
-import TrustPages from './components/TrustPages';
 import { X } from 'lucide-react';
 
 import { initializeCommunityDb, getCurrentUser, logoutUser, logUserActivity } from './utils/communityDb';
-import AuthModal from './components/AuthModal';
 import TopUsersList from './components/TopUsersList';
-import UserProfileModal from './components/UserProfileModal';
 import MoreMenuModal from './components/MoreMenuModal';
 import PremiumAdContainer from './components/PremiumAdContainer';
 
 // Next-Gen V4 Premium Components
-import ImmersiveReadingMode from './components/ImmersiveReadingMode';
 import FeelingsWall from './components/FeelingsWall';
 import TodaysFeelingPrompt from './components/TodaysFeelingPrompt';
 
@@ -36,8 +47,6 @@ import EmotionalBlogs from './components/EmotionalBlogs';
 
 import { emotionalQuestionPages, EmotionalQuestionPage } from './data/emotionalQuestions';
 import EmotionalQuestionPageContainer from './components/EmotionalQuestionPageContainer';
-import CreateHubModal from './components/CreateHubModal';
-import MoodPostModal from './components/MoodPostModal';
 
 // SEO & Performance upgrade assets
 import { generateShayariSlug, generateDynamicMeta, syncDynamicMetaToDom } from './utils/seo';
@@ -116,8 +125,86 @@ export default function App() {
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isUnlockPopupOpen, setIsUnlockPopupOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const [is404, setIs404] = useState(false);
   const [imageStudioShayari, setImageStudioShayari] = useState<Shayari | null>(null);
   const [activeVoiceShayari, setActiveVoiceShayari] = useState<Shayari | null>(null);
+
+  // Dedicated Admin Menu & Authentication states
+  const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
+  const [isAdminVerified, setIsAdminVerified] = useState(() => localStorage.getItem('roynorules_admin_verified') === 'true');
+  const [adminTab, setAdminTab] = useState<'analytics' | 'manage_shayari' | 'users' | 'block_unblock' | 'ads' | 'settings' | 'seo' | 'messages' | 'mood' | undefined>(undefined);
+
+  // Administrative session logout protocol (Requirement 3, 4, 6)
+  const handleAdminLogout = () => {
+    setIsAdminMenuOpen(false);
+    setIsAdminVerified(false);
+    localStorage.removeItem('roynorules_admin_verified');
+    localStorage.removeItem('admin_last_activity');
+    setIsAdminPanelOpen(false);
+    setIsUnlockPopupOpen(false);
+    setAdminTab(undefined);
+    
+    // Redirect cleanly to home if logged out inside restricted admin URL
+    if (window.location.pathname === '/admin' || window.location.pathname === '/admin/' || window.location.pathname === '/admin-login' || window.location.pathname === '/admin-login/') {
+      window.history.pushState(null, '', '/');
+      window.dispatchEvent(new Event('popstate'));
+    }
+    
+    showToast('Logged out of Admin Panel session cleanly 🔒');
+  };
+
+  // Inactivity watchdog monitor (Requirement 4)
+  useEffect(() => {
+    if (!isAdminVerified) return;
+
+    // Load or initialize activity timestamp
+    localStorage.setItem('admin_last_activity', Date.now().toString());
+
+    const updateAdminActivity = () => {
+      localStorage.setItem('admin_last_activity', Date.now().toString());
+    };
+
+    // Human activity listeners to trace engagement
+    window.addEventListener('click', updateAdminActivity);
+    window.addEventListener('keypress', updateAdminActivity);
+    window.addEventListener('mousemove', updateAdminActivity);
+    window.addEventListener('scroll', updateAdminActivity);
+
+    // Dynamic inactivity check execution (Interval)
+    const watchdogTimer = setInterval(() => {
+      const lastActivityStr = localStorage.getItem('admin_last_activity');
+      if (lastActivityStr) {
+        const lastActivity = parseInt(lastActivityStr, 10);
+        const timeDelta = Date.now() - lastActivity;
+        const thirtyMinutes = 30 * 60 * 1000;
+        
+        if (timeDelta > thirtyMinutes) {
+          // Absolute session termination
+          setIsAdminVerified(false);
+          setIsAdminPanelOpen(false);
+          setIsUnlockPopupOpen(false);
+          setAdminTab(undefined);
+          localStorage.removeItem('roynorules_admin_verified');
+          localStorage.removeItem('admin_last_activity');
+          
+          if (window.location.pathname === '/admin' || window.location.pathname === '/admin/' || window.location.pathname === '/admin-login' || window.location.pathname === '/admin-login/') {
+            window.history.pushState(null, '', '/');
+            window.dispatchEvent(new Event('popstate'));
+          }
+          
+          showToast('⚠️ Session terminated: Logged out due to 30 minutes of inactivity.');
+        }
+      }
+    }, 12000); // Trigger watch validation checks every 12 seconds
+
+    return () => {
+      window.removeEventListener('click', updateAdminActivity);
+      window.removeEventListener('keypress', updateAdminActivity);
+      window.removeEventListener('mousemove', updateAdminActivity);
+      window.removeEventListener('scroll', updateAdminActivity);
+      clearInterval(watchdogTimer);
+    };
+  }, [isAdminVerified]);
 
   // 4a. User Account States (NEW)
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -151,6 +238,7 @@ export default function App() {
   const [visibleList, setVisibleList] = useState<Shayari[]>([]);
   const [visibleCount, setVisibleCount] = useState(12);
   const [isFeedLoading, setIsFeedLoading] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   // 7. General Application Toast state (to hold dynamic system notification alerts)
   const [toastMessage, setToastMessage] = useState('');
@@ -385,6 +473,27 @@ export default function App() {
   useEffect(() => {
     const parseAndApplyRoute = () => {
       const path = window.location.pathname;
+
+      // Intercept direct admin URL routes (Requirement 5, 6, 8)
+      if (path === '/admin' || path === '/admin/' || path === '/admin-login' || path === '/admin-login/') {
+        setImmersiveShayari(null);
+        setCurrentTrustPath(null);
+        setSelectedProfileUsername(null);
+        setIs404(false);
+        setShowIntro(false);
+        setActiveEmotionalPage(null);
+
+        const isVerified = localStorage.getItem('roynorules_admin_verified') === 'true';
+        if (isVerified) {
+          setIsAdminPanelOpen(true);
+          setIsUnlockPopupOpen(false);
+        } else {
+          setIsAdminPanelOpen(false);
+          setIsUnlockPopupOpen(true); // Directs to Admin Login & "Unauthorized Access" warn screen
+        }
+        return;
+      }
+
       const trustPaths = ['/about-us', '/privacy-policy', '/terms-and-conditions', '/disclaimer', '/contact-us'];
       
       const matchedEq = emotionalQuestionPages.find(eq => '/' + eq.slug === path);
@@ -392,6 +501,8 @@ export default function App() {
         setActiveEmotionalPage(matchedEq);
         setImmersiveShayari(null);
         setCurrentTrustPath(null);
+        setSelectedProfileUsername(null);
+        setIs404(false);
         setShowIntro(false);
         return;
       }
@@ -401,6 +512,8 @@ export default function App() {
       if (trustPaths.includes(path)) {
         setCurrentTrustPath(path);
         setImmersiveShayari(null);
+        setSelectedProfileUsername(null);
+        setIs404(false);
         return;
       }
 
@@ -410,15 +523,28 @@ export default function App() {
       if (segments.length === 0) {
         setSelectedCategory('All');
         setImmersiveShayari(null);
+        setSelectedProfileUsername(null);
+        setIs404(false);
       } else if (segments.length === 1) {
         // Category path: e.g. /sad or /motivation
         const rawCategory = segments[0].toLowerCase();
+        
+        // Exclude specific files like custom assets in dev/prod
+        if (rawCategory === 'sitemap.xml' || rawCategory === 'robots.txt' || rawCategory === 'ads.txt') {
+          setIs404(false);
+          return;
+        }
+
         const matched = categories.find(
           c => c.toLowerCase() === rawCategory || c.toLowerCase().replace(/\s+/g, '-') === rawCategory
         );
         if (matched) {
           setSelectedCategory(matched);
           setImmersiveShayari(null);
+          setSelectedProfileUsername(null);
+          setIs404(false);
+        } else {
+          setIs404(true);
         }
       } else if (segments.length === 2) {
         if (segments[0] === 'creator') {
@@ -426,6 +552,7 @@ export default function App() {
           setSelectedProfileUsername(uName);
           setImmersiveShayari(null);
           setCurrentTrustPath(null);
+          setIs404(false);
           return;
         }
 
@@ -442,12 +569,16 @@ export default function App() {
           return itemSlug.toLowerCase().endsWith(slugSubpart) || s.id === slugSubpart;
         });
 
-        if (matchedShayari) {
-          if (matchedCategory) {
-            setSelectedCategory(matchedCategory);
-          }
+        if (matchedShayari && matchedCategory) {
+          setSelectedCategory(matchedCategory);
           setImmersiveShayari(matchedShayari);
+          setSelectedProfileUsername(null);
+          setIs404(false);
+        } else {
+          setIs404(true);
         }
+      } else {
+        setIs404(true);
       }
     };
 
@@ -543,6 +674,28 @@ export default function App() {
     }, 550);
   };
 
+  // Autoload more when scrolled close to the bottom (Infinite Scroll)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.IntersectionObserver) return;
+    const currentRef = loadMoreRef.current;
+    if (!currentRef) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (first.isIntersecting && !isFeedLoading && visibleList.length < finalSortedShayaris.length) {
+          handleLoadMore();
+        }
+      },
+      { rootMargin: '350px' } // Pre-load when 350px near view boundary
+    );
+
+    observer.observe(currentRef);
+    return () => {
+      observer.unobserve(currentRef);
+    };
+  }, [loadMoreRef, isFeedLoading, visibleList.length, finalSortedShayaris.length]);
+
   // Auto pause/stop voice synthesis if the active playing card is filtered out, changed, or rotated
   useEffect(() => {
     if (activeVoiceShayari && !visibleList.some(s => s.id === activeVoiceShayari.id)) {
@@ -602,34 +755,30 @@ export default function App() {
     });
   };
 
-  // Interactive 3-second Hold on Logo
-  const handleHoldStart = (e: React.MouseEvent | React.TouchEvent) => {
-    setHoldProgress(0);
-    let duration = 0;
-    
-    // Interval runs every 50ms
-    holdIntervalRef.current = window.setInterval(() => {
-      duration += 50;
-      const pct = Math.min((duration / 3000) * 100, 100);
-      setHoldProgress(pct);
-
-      if (duration >= 3000) {
-        if (holdIntervalRef.current) clearInterval(holdIntervalRef.current);
-        holdIntervalRef.current = null;
-        setHoldProgress(100);
-        setIsUnlockPopupOpen(true);
-        showToast('Decrypt Gateway Enabled: Complete Admin Verification 🔒');
-        setTimeout(() => setHoldProgress(0), 1000);
-      }
-    }, 50);
+  // Admin 3-dot dropdown menu actions
+  const handleAdminMenuToggle = () => {
+    if (!isAdminVerified) {
+      window.history.pushState(null, '', '/admin-login');
+      window.dispatchEvent(new Event('popstate'));
+      showToast('Redirecting to Admin Login... 🔒');
+      return;
+    }
+    setIsAdminMenuOpen(!isAdminMenuOpen);
   };
 
-  const handleHoldEnd = () => {
-    if (holdIntervalRef.current) {
-      clearInterval(holdIntervalRef.current);
-      holdIntervalRef.current = null;
+  const handleAdminMenuSelect = (tab: 'analytics' | 'manage_shayari' | 'users' | 'block_unblock' | 'ads' | 'settings' | 'seo' | 'messages' | 'mood') => {
+    setIsAdminMenuOpen(false);
+    
+    // Check if authenticated
+    if (!isAdminVerified) {
+      // Open the locker unlock PIN pop-up first
+      setIsUnlockPopupOpen(true);
+      showToast('Admin verification key required to unlock portal 🔒');
+      return;
     }
-    setHoldProgress(0);
+
+    setAdminTab(tab);
+    setIsAdminPanelOpen(true);
   };
 
 
@@ -732,6 +881,19 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id })
+      })
+      .then(async (res) => {
+        if (res.ok) {
+          const data = await res.json();
+          if (data.telegram && !data.telegram.success) {
+            // Note if Telegram config is active but fails to sync
+            if (data.telegram.error && !data.telegram.error.toLowerCase().includes('disabled')) {
+              alert(`⚠️ Shayari Approved Multi-Databases!\n\nWebsite Status: Published successfully ✨\nTelegram Post Status: Failed ❌\n\nApproval Tracer ID: ${data.telegram.approvalId || 'N/A'}\nTelegram Error Reason: ${data.telegram.error}`);
+            }
+          }
+        } else {
+          console.error('Approval request failed on server side.');
+        }
       })
       .catch(err => console.error('Failed to sync approval to server:', err));
 
@@ -843,24 +1005,17 @@ export default function App() {
             )}
           </div>
 
-          {/* Center: Premium Centered Trigger Logo Group */}
+          {/* Center: Premium Centered Logo Group (Requirement 2 & 6: Tapping logo opens Admin Login screen/route) */}
           <div className="flex flex-col items-center justify-center text-center w-2/4">
-            <div
-              onMouseDown={handleHoldStart}
-              onMouseUp={handleHoldEnd}
-              onMouseLeave={handleHoldEnd}
-              onTouchStart={handleHoldStart}
-              onTouchEnd={handleHoldEnd}
-              className="relative group cursor-pointer select-none flex flex-col items-center justify-center"
+            <div 
+              onClick={() => {
+                window.history.pushState(null, '', '/admin-login');
+                window.dispatchEvent(new Event('popstate'));
+                showToast('Opening Admin Login gateway... 🔒');
+              }}
+              className="relative group select-none flex flex-col items-center justify-center cursor-pointer active:scale-98 transition transform duration-150"
+              title="Admin Portal Entrance"
             >
-              {/* Subtle dynamic backdrop halo when holding to unlock */}
-              {holdProgress > 0 && (
-                <div 
-                  className="absolute inset-0 bg-red-600/15 blur-xl rounded-full transition-all duration-75"
-                  style={{ transform: `scale(${1 + holdProgress / 40})` }}
-                />
-              )}
-              
               <div className="flex items-center gap-1.5 justify-center">
                 <motion.h1
                   initial={{ opacity: 0, scale: 0.95 }}
@@ -878,17 +1033,11 @@ export default function App() {
                 <span>•</span>
                 <span className="text-zinc-400 whitespace-nowrap">{istTime || 'Clock'}</span>
               </div>
-
-              {holdProgress > 0 && (
-                <div className="text-[7.5px] font-mono font-black text-red-500 mt-1.5 uppercase tracking-widest leading-none bg-black/60 px-1 py-0.5 rounded border border-red-950/50">
-                  🔓 LOCKER: {Math.round(holdProgress)}%
-                </div>
-              )}
             </div>
           </div>
 
-          {/* Right: Search / Filter Icon */}
-          <div className="flex items-center justify-end w-1/4">
+          {/* Right: Search / Filter Icon + Three-dot Menu */}
+          <div className="flex items-center justify-end w-1/4 gap-2 relative z-50">
             <button
               onClick={() => {
                 const el = document.getElementById('feeling-search-input');
@@ -903,6 +1052,162 @@ export default function App() {
             >
               <Search size={17} />
             </button>
+
+            {/* Three-dot dropdown menu (Always visible for admin access fallback - Requirement 5 & 7) */}
+            <div className="relative">
+              <button
+                onClick={handleAdminMenuToggle}
+                className={`p-2.5 rounded-xl border transition duration-300 cursor-pointer select-none active:scale-95 flex items-center justify-center shadow-lg ${
+                  isAdminMenuOpen 
+                    ? 'bg-red-500/10 border-red-500/40 text-red-400' 
+                    : 'bg-zinc-900/50 hover:bg-zinc-800/60 border-zinc-800 hover:border-red-500/25 text-zinc-400 hover:text-white'
+                }`}
+                title="Admin Control Hub"
+              >
+                <MoreVertical size={17} />
+              </button>
+
+              <AnimatePresence>
+                {isAdminMenuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute right-0 top-full mt-2 w-56 bg-zinc-950 border border-zinc-850 rounded-2xl py-2 shadow-2xl z-[100] text-left overflow-hidden divide-y divide-zinc-900"
+                  >
+                    {!isAdminVerified ? (
+                      <div className="px-1.5 py-1">
+                        <button
+                          onClick={() => {
+                            setIsAdminMenuOpen(false);
+                            setIsUnlockPopupOpen(true);
+                            showToast('Admin verification key required to unlock portal 🔒');
+                          }}
+                          className="w-full text-left px-3 py-2.5 text-xs font-mono text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-xl transition flex items-center gap-2 cursor-pointer font-bold"
+                        >
+                          <Lock size={12} className="text-red-500" />
+                          <span>Unlock Admin Panel</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="p-1.5 space-y-0.5">
+                          <button
+                            onClick={() => handleAdminMenuSelect('analytics')}
+                            className="w-full text-left px-3 py-2 text-xs font-mono text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-xl transition flex items-center gap-2 cursor-pointer font-bold"
+                          >
+                            <BarChart2 size={12} className="text-cyan-500" />
+                            <span>Dashboard Logs</span>
+                          </button>
+                          
+                          <button
+                            onClick={() => handleAdminMenuSelect('manage_shayari')}
+                            className="w-full text-left px-3 py-2 text-xs font-mono text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-xl transition flex items-center gap-2 cursor-pointer font-bold"
+                          >
+                            <Plus size={12} className="text-emerald-500" />
+                            <span>Add Shayari</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleAdminMenuSelect('manage_shayari')}
+                            className="w-full text-left px-3 py-2 text-xs font-mono text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-xl transition flex items-center gap-2 cursor-pointer font-bold"
+                          >
+                            <Edit3 size={12} className="text-amber-500" />
+                            <span>Edit Shayari</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleAdminMenuSelect('manage_shayari')}
+                            className="w-full text-left px-3 py-2 text-xs font-mono text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-xl transition flex items-center gap-2 cursor-pointer font-bold"
+                          >
+                            <Trash2 size={12} className="text-red-500" />
+                            <span>Delete Shayari</span>
+                          </button>
+                        </div>
+
+                        <div className="p-1.5 space-y-0.5">
+                          <button
+                            onClick={() => handleAdminMenuSelect('manage_shayari')}
+                            className="w-full text-left px-3 py-2 text-xs font-mono text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-xl transition flex items-center gap-2 cursor-pointer font-bold"
+                          >
+                            <Layers size={12} className="text-teal-400" />
+                            <span>Categories</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleAdminMenuSelect('users')}
+                            className="w-full text-left px-3 py-2 text-xs font-mono text-zinc-350 hover:text-white hover:bg-zinc-900 rounded-xl transition flex items-center gap-2 cursor-pointer font-bold"
+                          >
+                            <Users size={12} className="text-purple-400" />
+                            <span>User Management</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleAdminMenuSelect('block_unblock')}
+                            className="w-full text-left px-3 py-2 text-xs font-mono text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-xl transition flex items-center gap-2 cursor-pointer font-bold"
+                          >
+                            <ShieldAlert size={12} className="text-rose-500" />
+                            <span>Reports & Bans</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleAdminMenuSelect('analytics')}
+                            className="w-full text-left px-3 py-2 text-xs font-mono text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-xl transition flex items-center gap-2 cursor-pointer font-bold"
+                          >
+                            <TrendingUp size={12} className="text-emerald-400" />
+                            <span>Analytics</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleAdminMenuSelect('messages')}
+                            className="w-full text-left px-3 py-2 text-xs font-mono text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-xl transition flex items-center gap-2 cursor-pointer font-bold"
+                          >
+                            <Mail size={12} className="text-blue-400" />
+                            <span>Contact Messages</span>
+                          </button>
+                        </div>
+
+                        <div className="p-1.5 space-y-0.5">
+                          <button
+                            onClick={() => handleAdminMenuSelect('seo')}
+                            className="w-full text-left px-3 py-2 text-xs font-mono text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-xl transition flex items-center gap-2 cursor-pointer font-bold"
+                          >
+                            <Globe size={12} className="text-indigo-400" />
+                            <span>SEO Tools</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleAdminMenuSelect('seo')}
+                            className="w-full text-left px-3 py-2 text-xs font-mono text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-xl transition flex items-center gap-2 cursor-pointer font-bold"
+                          >
+                            <RefreshCw size={12} className="text-teal-500" />
+                            <span>Sitemap Manager</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleAdminMenuSelect('ads')}
+                            className="w-full text-left px-3 py-2 text-xs font-mono text-zinc-300 hover:text-white hover:bg-zinc-900 rounded-xl transition flex items-center gap-2 cursor-pointer font-bold"
+                          >
+                            <DollarSign size={12} className="text-yellow-500" />
+                            <span>Adsense Status</span>
+                          </button>
+                        </div>
+
+                        <div className="p-1.5">
+                          <button
+                            onClick={handleAdminLogout}
+                            className="w-full text-left px-3 py-2 text-xs font-mono text-red-400 hover:text-red-300 hover:bg-red-950/10 rounded-xl transition flex items-center gap-2 cursor-pointer font-bold"
+                          >
+                            <LogOut size={12} />
+                            <span>Logout</span>
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
 
         </div>
@@ -911,7 +1216,48 @@ export default function App() {
       {/* Main Container Wrapper */}
       <main className="max-w-5xl mx-auto px-4 pt-10 pb-36 space-y-8">
         
-        {activeEmotionalPage ? (
+        {is404 ? (
+          <div className="py-24 px-6 text-center space-y-6 max-w-md mx-auto animate-fadeIn select-none border border-zinc-900 bg-zinc-950/40 rounded-[32px] shadow-2xl relative overflow-hidden">
+            <div className="absolute -top-12 -left-12 w-36 h-36 bg-red-500/5 blur-3xl pointer-events-none rounded-full" />
+            <div className="text-5xl">🥀</div>
+            <div className="space-y-2">
+              <h2 className="text-2.5xl font-black text-white tracking-tight">Shayari Kho Gayi...</h2>
+              <p className="text-xs text-zinc-400 font-sans leading-relaxed text-balance">
+                The feelings or verses you are searching for have drifted away in the deep cosmos. Let&apos;s guide you back to our emotional sanctuary.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2.5 pt-4 justify-center">
+              <button
+                onClick={() => {
+                  window.history.pushState(null, '', '/');
+                  window.dispatchEvent(new Event('popstate'));
+                  showToast('Guiding you back home... 💖');
+                }}
+                className="py-3 px-5 rounded-xl bg-gradient-to-r from-red-650 to-rose-700 text-white text-xs font-mono font-bold hover:brightness-110 shadow-lg tracking-wider uppercase transition cursor-pointer select-none active:scale-95"
+              >
+                Go Home Page
+              </button>
+              <button
+                onClick={() => {
+                  window.history.pushState(null, '', '/');
+                  window.dispatchEvent(new Event('popstate'));
+                  setTimeout(() => {
+                    const el = document.getElementById('feeling-search-input');
+                    if (el) {
+                      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      (el as HTMLInputElement).focus();
+                    }
+                  }, 200);
+                  showToast('Let&apos;s search another emotion! 🌌');
+                }}
+                className="py-3 px-5 rounded-xl bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-350 hover:text-white text-xs font-mono font-bold tracking-wider uppercase transition cursor-pointer select-none active:scale-95"
+              >
+                Explore Emotions
+              </button>
+            </div>
+          </div>
+        ) : activeEmotionalPage ? (
           <EmotionalQuestionPageContainer
             page={activeEmotionalPage}
             allShayaris={approvedList}
@@ -1059,40 +1405,39 @@ export default function App() {
 
                 return (
                   <div key={shayari.id} style={{ display: 'contents' }}>
-                    <div>
-                      <ShayariCard
-                        shayari={shayari}
-                        isSaved={isSaved}
-                        onToggleSave={() => {
-                          handleToggleSaveShayari(shayari.id);
-                          setActiveMiniPlayerShayari(shayari);
-                        }}
-                        onOpenImageStudio={() => {
-                          setImageStudioShayari(shayari);
-                          setActiveMiniPlayerShayari(shayari);
-                        }}
-                        index={index}
-                        isAutoShuffleOn={isAutoShuffleOn}
-                        onNextShayari={() => handleShuffleCardAt(index)}
-                        showToast={showToast}
-                        onListen={() => {
-                          setActiveMiniPlayerShayari(shayari);
-                          if (activeVoiceShayari?.id === shayari.id) {
-                            setActiveVoiceShayari(null);
-                          } else {
-                            setActiveVoiceShayari(shayari);
-                          }
-                        }}
-                        isListening={activeVoiceShayari?.id === shayari.id}
-                        onFocus={(sh) => {
-                          setActiveMiniPlayerShayari(sh);
-                        }}
-                        onOpenImmersive={() => {
-                          setImmersiveShayari(shayari);
-                          setActiveMiniPlayerShayari(shayari);
-                        }}
-                      />
-                    </div>
+                    <ShayariCard
+                      shayari={shayari}
+                      isSaved={isSaved}
+                      onToggleSave={() => {
+                        handleToggleSaveShayari(shayari.id);
+                        setActiveMiniPlayerShayari(shayari);
+                      }}
+                      onOpenImageStudio={() => {
+                        setImageStudioShayari(shayari);
+                        setActiveMiniPlayerShayari(shayari);
+                      }}
+                      index={index}
+                      isAutoShuffleOn={isAutoShuffleOn}
+                      onNextShayari={() => handleShuffleCardAt(index)}
+                      showToast={showToast}
+                      onListen={() => {
+                        setActiveMiniPlayerShayari(shayari);
+                        if (activeVoiceShayari?.id === shayari.id) {
+                          setActiveVoiceShayari(null);
+                        } else {
+                          setActiveVoiceShayari(shayari);
+                        }
+                      }}
+                      isListening={activeVoiceShayari?.id === shayari.id}
+                      onFocus={(sh) => {
+                        setActiveMiniPlayerShayari(sh);
+                      }}
+                      onOpenImmersive={() => {
+                        setImmersiveShayari(shayari);
+                        setActiveMiniPlayerShayari(shayari);
+                      }}
+                      allShayaris={approvedList}
+                    />
                     {showAdBelow && (
                       <div className="col-span-1 md:col-span-2 py-4 animate-fadeIn">
                         <PremiumAdContainer placement="betweenShayaris" />
@@ -1132,7 +1477,7 @@ export default function App() {
         )}
 
         {/* Real End-Feed Flow Container with Premium Load-More Button & Footer Directory */}
-        <div className="flex flex-col items-center justify-center pt-8 pb-4 space-y-6 select-none border-t border-white/5 w-full">
+        <div ref={loadMoreRef} className="flex flex-col items-center justify-center pt-8 pb-4 space-y-6 select-none border-t border-white/5 w-full">
           {!activeEmotionalPage && (
             visibleList.length < finalSortedShayaris.length && finalSortedShayaris.length > 0 ? (
               <motion.button
@@ -1391,9 +1736,9 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* MODAL 3: HIDDEN ADMIN PANEL */}
+      {/* MODAL 3: HIDDEN ADMIN PANEL (Requirement 2, 5, 8) */}
       <AnimatePresence>
-        {isAdminPanelOpen && (
+        {isAdminPanelOpen && isAdminVerified && (
           <motion.div key="modal-admin" style={{ display: 'contents' }}>
             <AdminPanel
               categories={categories}
@@ -1405,6 +1750,7 @@ export default function App() {
               onDeclineShayari={handleAdminDeclineShayari}
               onAddCategory={handleAdminAddCategoryName}
               onClose={() => setIsAdminPanelOpen(false)}
+              initialTab={adminTab}
             />
           </motion.div>
         )}
@@ -1418,7 +1764,10 @@ export default function App() {
               onClose={() => setIsUnlockPopupOpen(false)}
               onSuccess={() => {
                 setIsUnlockPopupOpen(false);
+                setIsAdminVerified(true);
+                localStorage.setItem('roynorules_admin_verified', 'true');
                 setIsAdminPanelOpen(true);
+                showToast('🔑 Secure gateway unlocked successfully. Welcome back, Admin!');
               }}
               showToast={showToast}
             />

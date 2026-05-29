@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
+import https from 'https';
 
 // Robust environment-agnostic ESM/CJS path resolution
 const _filename = typeof __filename !== 'undefined'
@@ -32,12 +33,333 @@ app.get('/google59b50fef3e93f851.html', (req, res) => {
 
 const DB_FILE_PATH = path.join(process.cwd(), 'server_db.json');
 
-// Memory cache of server-side community submissions
+// Memory cache of server-side community submissions & integrations
 let db = {
   approved: [] as any[],
   pending: [] as any[],
-  categories: defaultCategories
+  categories: defaultCategories,
+  telegramConfig: {
+    botToken: '',
+    chatId: '',
+    enabled: false
+  },
+  telegramLogs: [] as any[]
 };
+
+// HTML Escaping for safe Telegram HTML parsing mode (prevents client markdown/HTML crashes)
+function escapeTelegramHtml(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// Native https POST helper to communicate with Telegram Bot API without extra libraries
+function postToTelegram(botToken: string, chatId: string, text: string, replyMarkup?: any): Promise<{ success: boolean; error?: string }> {
+  return new Promise((resolve) => {
+    const payload = JSON.stringify({
+      chat_id: chatId,
+      text: text,
+      parse_mode: 'HTML',
+      reply_markup: replyMarkup || undefined
+    });
+
+    const options = {
+      hostname: 'api.telegram.org',
+      port: 443,
+      path: `/bot${botToken}/sendMessage`,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      },
+      timeout: 10000 // 10 second timeout limit
+    };
+
+    const req = https.request(options, (res) => {
+      let responseBody = '';
+      res.on('data', (chunk) => {
+        responseBody += chunk;
+      });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(responseBody);
+          if (res.statusCode === 200 && parsed.ok) {
+            resolve({ success: true });
+          } else {
+            resolve({ success: false, error: parsed.description || `HTTP ${res.statusCode}` });
+          }
+        } catch (e: any) {
+          resolve({ success: false, error: `Invalid JSON response: ${e?.message || e}` });
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      resolve({ success: false, error: err.message || 'Network error' });
+    });
+
+    req.on('timeout', () => {
+      req.destroy();
+      resolve({ success: false, error: 'Request timeout' });
+    });
+
+    req.write(payload);
+    req.end();
+  });
+}
+
+// Auto-resolves channel usernames, links (e.g. t.me/username), and numeric IDs safely
+function parseTelegramChatId(input: string): string {
+  if (!input) return '';
+  input = input.trim();
+  // Match t.me/username, t.me/joinchat, or t.me/c/..., etc.
+  const urlMatch = input.match(/(?:https?:\/\/)?(?:www\.)?(?:t\.me|telegram\.me)\/([a-zA-Z0-9_]+)/);
+  if (urlMatch && urlMatch[1]) {
+    // Check if it's not a generic page or numeric redirect
+    return '@' + urlMatch[1];
+  }
+  // Check if it's a numeric ID (which could start with - or -100)
+  if (/^-?\d+$/.test(input)) {
+    return input;
+  }
+  // If it's a username but doesn't have @, prepend it
+  if (!input.startsWith('@')) {
+    return '@' + input;
+  }
+  return input;
+}
+
+// Native https getChat POST helper to resolve usernames and check permissions
+function getTelegramChat(botToken: string, chatId: string): Promise<{ success: boolean; chat?: any; error?: string }> {
+  return new Promise((resolve) => {
+    const cleanChatId = parseTelegramChatId(chatId);
+    if (!cleanChatId) {
+      return resolve({ success: false, error: 'Empty Chat identifier' });
+    }
+
+    const payload = JSON.stringify({
+      chat_id: cleanChatId
+    });
+
+    const options = {
+      hostname: 'api.telegram.org',
+      port: 443,
+      path: `/bot${botToken}/getChat`,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      },
+      timeout: 8000
+    };
+
+    const req = https.request(options, (res) => {
+      let responseBody = '';
+      res.on('data', (chunk) => {
+        responseBody += chunk;
+      });
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(responseBody);
+          if (res.statusCode === 200 && parsed.ok) {
+            resolve({ success: true, chat: parsed.result });
+          } else {
+            resolve({ success: false, error: parsed.description || `HTTP ${res.statusCode}` });
+          }
+        } catch (e: any) {
+          resolve({ success: false, error: `Invalid JSON response: ${e?.message || e}` });
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      resolve({ success: false, error: err.message || 'Network error' });
+    });
+
+    req.on('timeout', () => {
+      req.destroy();
+      resolve({ success: false, error: 'Request timeout' });
+    });
+
+    req.write(payload);
+    req.end();
+  });
+}
+
+// Sends an approved/published Shayari dynamically to the Telegram Automation channel if enabled
+async function sendShayariToTelegram(shayari: any): Promise<{ success: boolean; error?: string; logId?: string; chat?: any }> {
+  const config = db.telegramConfig;
+  if (!config || !config.enabled || !config.botToken || !config.chatId) {
+    console.log('[Telegram Automation] Auto Post is disabled or config is incomplete.');
+    return { success: false, error: 'Telegram configuration is disabled or incomplete.' };
+  }
+
+  // Prevent duplicate sending
+  db.telegramLogs = db.telegramLogs || [];
+  const alreadySent = db.telegramLogs.some(log => log.shayariId === shayari.id && log.status === 'Sent');
+  if (alreadySent) {
+    console.log(`[Telegram Automation] Skipping duplicate post for Shayari ID: ${shayari.id}`);
+    return { success: true, error: 'This Shayari is already published on Telegram.', logId: '' };
+  }
+
+  const category = shayari.category || 'Vibe';
+  const authorName = shayari.author || 'Roy No Rules';
+  const shayariText = shayari.text || '';
+  const id = shayari.id;
+  
+  // Clean slug generation path standard fallback matching sitemaps
+  const cleanCat = category.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const romanized = transliterateDevanagari(shayariText);
+  const cleanText = romanized
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .trim()
+    .replace(/\s+/g, '-');
+  const parts = cleanText.split('-').filter(Boolean).slice(0, 5).join('-');
+  const finalPart = parts || 'vibe';
+  const slugPath = shayari.slug || `${cleanCat}/${finalPart}-${id}`;
+
+  const websiteOrigin = 'https://royversehub.netlify.app';
+  const postUrl = `${websiteOrigin}/${slugPath}`;
+
+  // Auto hashtags based on category
+  const simpleCat = category.replace(/[^a-zA-Z0-9]/g, '');
+  const tagsSet = new Set(['RoyVerse', 'Shayari']);
+  if (simpleCat && simpleCat.toLowerCase() !== 'all') {
+    tagsSet.add(simpleCat);
+  }
+  const hashtags = Array.from(tagsSet).map(t => `#${t}`).join(' ');
+
+  // Form structured Telegram post layout
+  const formattedDate = new Date(shayari.createdAt || Date.now()).toLocaleDateString('en-US', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  });
+
+  const escapedText = escapeTelegramHtml(shayariText);
+  const escapedAuthor = escapeTelegramHtml(authorName);
+  
+  const messageText = `✨ <b>Roy Verse Hub</b> ✨\n\n${escapedText}\n\n━━━━━━━━━━━━━━\n\n👤 <b>Author:</b> ${escapedAuthor}\n📅 ${formattedDate}`;
+
+  const replyMarkup = {
+    inline_keyboard: [
+      [
+        { text: '❤️ Like', url: postUrl },
+        { text: '🌐 Visit Website', url: 'https://royversehub.netlify.app' }
+      ]
+    ]
+  };
+
+  // Create active pending ledger trace
+  const logId = 'log-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+  const newLog = {
+    id: logId,
+    shayariId: id,
+    shayariText: shayariText.substring(0, 60) + (shayariText.length > 60 ? '...' : ''),
+    category: category,
+    status: 'Pending' as 'Sent' | 'Failed' | 'Pending',
+    timestamp: new Date().toISOString(),
+    getChatResponse: null as any,
+    approvalId: null as string | null,
+    telegramRequest: null as any,
+    telegramResponse: null as any
+  };
+  db.telegramLogs.unshift(newLog);
+  saveDb();
+
+  console.log(`[Telegram Automation] Resolving Chat coordinates for ID/Username: ${config.chatId}`);
+  
+  // Call getChat API (Requirement 4)
+  const chatResult = await getTelegramChat(config.botToken, config.chatId);
+  const logIndex = db.telegramLogs.findIndex(l => l.id === logId);
+
+  if (!chatResult.success) {
+    console.error(`[Telegram Automation] getChat validation failed for target: ${config.chatId}. Error: ${chatResult.error}`);
+    if (logIndex !== -1) {
+      db.telegramLogs[logIndex].status = 'Failed';
+      db.telegramLogs[logIndex].error = `getChat: ${chatResult.error || 'Chat not found'}`;
+    }
+    saveDb();
+    return { success: false, error: chatResult.error || 'Chat not found', logId };
+  }
+
+  // Display getChat response in logs (Requirement 5)
+  if (logIndex !== -1) {
+    db.telegramLogs[logIndex].getChatResponse = chatResult.chat;
+  }
+
+  // Determine exact resolved channel target ID (Requirement 3)
+  const resolvedChatId = chatResult.chat ? chatResult.chat.id.toString() : config.chatId;
+
+  // Fire execution request to resolved chat ID
+  const result = await postToTelegram(config.botToken, resolvedChatId, messageText, replyMarkup);
+
+  // Patch database logs with ultimate status response
+  if (logIndex !== -1) {
+    db.telegramLogs[logIndex].status = result.success ? 'Sent' : 'Failed';
+    if (!result.success) {
+      db.telegramLogs[logIndex].error = result.error;
+    }
+  }
+  saveDb();
+  console.log(`[Telegram Automation] Auto-post job finished. Status: ${result.success ? 'Success' : 'Failed'}`);
+  return {
+    success: result.success,
+    error: result.error,
+    logId,
+    chat: chatResult.chat
+  };
+}
+
+// Global pipeline tracking wrapper to automate approved user-submitted Shayari syncs (Requirement 1, 2, 4, 5, 7)
+async function publishApprovedShayariToTelegram(shayari: any): Promise<{ success: boolean; error?: string; approvalId: string }> {
+  const approvalId = 'approval-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+  
+  console.log(`[Telegram Approval Pipeline] [LOG START] Approval ID: ${approvalId}`);
+  console.log(`[Telegram Approval Pipeline] Telegram Request Payload Prep for Shayari ID: ${shayari.id}`);
+  
+  // Clean duplicate prevention (Requirement 7)
+  db.telegramLogs = db.telegramLogs || [];
+  const alreadySent = db.telegramLogs.some(log => log.shayariId === shayari.id && log.status === 'Sent');
+  if (alreadySent) {
+    console.log(`[Telegram Approval Pipeline] Aborting duplicate post prevention: Shayari ID ${shayari.id} is already published.`);
+    return { success: true, error: 'A duplicate post was prevented. Already published upstream.', approvalId };
+  }
+
+  // Execute the exact same shared Telegram posting logic (Requirement 3)
+  const result = await sendShayariToTelegram(shayari);
+
+  // Retrieve the generated ledger item and hook in the approval tracer telemetry (Requirement 5)
+  if (result.logId) {
+    const logIdx = db.telegramLogs.findIndex(l => l.id === result.logId);
+    if (logIdx !== -1) {
+      db.telegramLogs[logIdx].approvalId = approvalId;
+      db.telegramLogs[logIdx].telegramRequest = {
+        chatId: db.telegramConfig.chatId,
+        category: shayari.category,
+        author: shayari.author,
+        textLength: shayari.text ? shayari.text.length : 0
+      };
+      db.telegramLogs[logIdx].telegramResponse = {
+        success: result.success,
+        chat: result.chat,
+        error: result.error || null
+      };
+    }
+    saveDb();
+  }
+
+  console.log(`[Telegram Approval Pipeline] [LOG END] Approval ID: ${approvalId}. Success: ${result.success}. Error: ${result.error || 'None'}`);
+
+  return {
+    success: result.success,
+    error: result.error,
+    approvalId
+  };
+}
 
 // Load community shayaris from disk
 function loadDb() {
@@ -49,6 +371,16 @@ function loadDb() {
       if (!Array.isArray(db.approved)) db.approved = [];
       if (!Array.isArray(db.pending)) db.pending = [];
       if (!Array.isArray(db.categories)) db.categories = defaultCategories;
+      if (!db.telegramConfig) {
+        db.telegramConfig = {
+          botToken: '',
+          chatId: '',
+          enabled: false
+        };
+      }
+      if (!Array.isArray(db.telegramLogs)) {
+        db.telegramLogs = [];
+      }
     } else {
       fs.writeFileSync(DB_FILE_PATH, JSON.stringify(db, null, 2), 'utf-8');
     }
@@ -124,6 +456,241 @@ app.get('/api/community-db', (req, res) => {
   });
 });
 
+function verifyTelegramToken(botToken: string): Promise<{ valid: boolean; botName?: string; error?: string }> {
+  return new Promise((resolve) => {
+    const options = {
+      hostname: 'api.telegram.org',
+      port: 443,
+      path: `/bot${botToken}/getMe`,
+      method: 'GET',
+      timeout: 8000
+    };
+
+    const req = https.request(options, (res) => {
+      let body = '';
+      res.on('data', (chunk) => body += chunk);
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(body);
+          if (res.statusCode === 200 && parsed.ok) {
+            resolve({ valid: true, botName: parsed.result.username || parsed.result.first_name });
+          } else {
+            resolve({ valid: false, error: parsed.description || `HTTP ${res.statusCode}` });
+          }
+        } catch (e: any) {
+          resolve({ valid: false, error: `JSON Parse error: ${e.message}` });
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      resolve({ valid: false, error: err.message || 'Verification network error' });
+    });
+
+    req.on('timeout', () => {
+      req.destroy();
+      resolve({ valid: false, error: 'Verification timed out' });
+    });
+
+    req.end();
+  });
+}
+
+app.get('/api/telegram-config', (req, res) => {
+  const cfg = db.telegramConfig || { botToken: '', chatId: '', enabled: false };
+  const hasToken = !!cfg.botToken;
+  // Return the full unshortened token so user can toggle unmasking via the eye icon. No truncation.
+  res.json({
+    botToken: cfg.botToken || '',
+    hasToken,
+    chatId: cfg.chatId || '',
+    enabled: !!cfg.enabled,
+    logs: db.telegramLogs || []
+  });
+});
+
+app.post('/api/telegram-config', async (req, res) => {
+  const { botToken, chatId, enabled } = req.body;
+  if (!db.telegramConfig) {
+    db.telegramConfig = { botToken: '', chatId: '', enabled: false };
+  }
+  
+  const originalLength = botToken ? botToken.length : 0;
+
+  // Fully preserve special symbols/characters and handle tokens > 100 characters. No truncation.
+  if (botToken !== undefined) {
+    if (botToken !== '' && !botToken.includes('••••')) {
+      db.telegramConfig.botToken = botToken;
+    } else if (botToken === '') {
+      db.telegramConfig.botToken = '';
+    }
+  }
+
+  let resolvedChatId = chatId;
+  let validationResult = null;
+
+  if (chatId !== undefined) {
+    const parsedInput = parseTelegramChatId(chatId);
+    db.telegramConfig.chatId = parsedInput; // Save the raw parsed version (e.g. @username or ID)
+    
+    // Attempt automatic resolution of channel to immutable channel ID using getChat API (Requirement 1, 3, 9)
+    const activeToken = db.telegramConfig.botToken;
+    if (activeToken && parsedInput) {
+      const getChatRes = await getTelegramChat(activeToken, parsedInput);
+      if (getChatRes.success && getChatRes.chat && getChatRes.chat.id) {
+        resolvedChatId = getChatRes.chat.id.toString();
+        db.telegramConfig.chatId = resolvedChatId; // Store physical numeric ID automatically
+        validationResult = {
+          valid: true,
+          chat: getChatRes.chat
+        };
+      } else {
+        validationResult = {
+          valid: false,
+          error: getChatRes.error || 'Chat not found or bot lacks administrative privileges.'
+        };
+      }
+    }
+  }
+
+  if (enabled !== undefined) {
+    db.telegramConfig.enabled = !!enabled;
+  }
+  saveDb();
+
+  const savedLength = db.telegramConfig.botToken ? db.telegramConfig.botToken.length : 0;
+
+  // Add precise debug log as required (Requirement 8)
+  console.log(`[DEBUG] Save Telegram Config: Original token length: ${originalLength}, Saved token length: ${savedLength}, Stored ChatId: ${db.telegramConfig.chatId}`);
+
+  // Perform backend verification using Telegram getMe API (Requirement 5 & 6)
+  let valStatus = { valid: false, botName: '', error: 'No token specified' };
+  if (db.telegramConfig.botToken) {
+    try {
+      const vResult = await verifyTelegramToken(db.telegramConfig.botToken);
+      valStatus = {
+        valid: vResult.valid,
+        botName: vResult.botName || '',
+        error: vResult.error || ''
+      };
+    } catch (err: any) {
+      valStatus = { valid: false, botName: '', error: err?.message || 'Verification exception' };
+    }
+  }
+
+  res.json({ 
+    success: true, 
+    tokenLength: savedLength,
+    validationStatus: valStatus,
+    chatResolution: validationResult,
+    savedChatId: db.telegramConfig.chatId
+  });
+});
+
+app.post('/api/telegram-test', async (req, res) => {
+  const { botToken, chatId } = req.body;
+  let finalToken = botToken;
+  if (!finalToken || finalToken.includes('••••')) {
+    finalToken = db.telegramConfig?.botToken || '';
+  }
+  const finalChatId = chatId || db.telegramConfig?.chatId || '';
+  
+  if (!finalToken || !finalChatId) {
+    return res.status(400).json({ success: false, error: 'Bot Token and Chat ID/Username are required for test connection.' });
+  }
+
+  // 1. Verify Bot Token
+  const meResult = await verifyTelegramToken(finalToken);
+  if (!meResult.valid) {
+    return res.status(400).json({ success: false, error: `Invalid bot token verified: ${meResult.error}` });
+  }
+
+  // 2. Resolve Chat with getChat (Requirement 4)
+  const cleanChatId = parseTelegramChatId(finalChatId);
+  const chatResult = await getTelegramChat(finalToken, cleanChatId);
+  if (!chatResult.success) {
+    return res.status(400).json({ 
+      success: false, 
+      error: `Channel resolution failed: ${chatResult.error}. Ensure the bot is added to your Telegram channel as an Administrator with administrative permissions.` 
+    });
+  }
+
+  const resolvedChatId = chatResult.chat.id.toString();
+  const channelDisplay = chatResult.chat.username ? `@${chatResult.chat.username}` : (chatResult.chat.title || cleanChatId);
+
+  // Send the specific formatted test message (Requirement 3)
+  const testMessageText = `✅ <b>Telegram Connected Successfully</b>\n\nChannel: ${channelDisplay}\nWebsite: https://royversehub.netlify.app`;
+  
+  const result = await postToTelegram(finalToken, resolvedChatId, testMessageText);
+  if (result.success) {
+    // If testing succeeds, automatically save the resolved physical ID to db settings to prevent "chat not found"
+    if (db.telegramConfig && db.telegramConfig.chatId !== resolvedChatId) {
+      db.telegramConfig.chatId = resolvedChatId;
+      saveDb();
+    }
+    res.json({ success: true, chat: chatResult.chat });
+  } else {
+    res.status(400).json({ success: false, error: `Failed to broadcast message: ${result.error}. Check channel permission rights.` });
+  }
+});
+
+app.post('/api/telegram-verify-channel', async (req, res) => {
+  const { botToken, chatId } = req.body;
+  let finalToken = botToken;
+  if (!finalToken || finalToken.includes('••••')) {
+    finalToken = db.telegramConfig?.botToken || '';
+  }
+  const finalChatId = chatId || db.telegramConfig?.chatId || '';
+
+  if (!finalToken || !finalChatId) {
+    return res.status(400).json({ success: false, error: 'Bot Token and Chat ID/Username are required for verification.' });
+  }
+
+  // 1. Verify Bot Token
+  const meResult = await verifyTelegramToken(finalToken);
+  if (!meResult.valid) {
+    return res.status(400).json({ 
+      success: false, 
+      errorType: 'TOKEN_INVALID',
+      error: `Token validation failed: ${meResult.error || 'Invalid API Token'}`
+    });
+  }
+
+  // 2. Resolve Chat (Requirement 4)
+  const cleanChatId = parseTelegramChatId(finalChatId);
+  const result = await getTelegramChat(finalToken, cleanChatId);
+  if (result.success) {
+    const resolvedChatId = result.chat.id.toString();
+    // Save resolved numeric ID automatically to prevent "Bad Request: chat not found"
+    if (db.telegramConfig) {
+      db.telegramConfig.chatId = resolvedChatId;
+      saveDb();
+    }
+    res.json({ 
+      success: true, 
+      bot: { username: meResult.botName },
+      chat: result.chat 
+    });
+  } else {
+    const rawError = result.error || '';
+    let description = rawError;
+    let type = 'CHANNEL_NOT_FOUND';
+    
+    if (rawError.includes('chat not found')) {
+      description = `The channel details for "${cleanChatId}" were not found. Verify the username or ID spelling. The channel must be PUBLIC for usernames to resolve, or private channels must use the numeric Channel ID (e.g. -100xxxxxxxxxx).`;
+    } else if (rawError.includes('bot is not a member') || rawError.includes('Forbidden') || rawError.includes('admin') || rawError.includes('privileges')) {
+      type = 'BOT_NOT_ADMIN';
+      description = `The bot was found, but lacks administrator privileges. Open your channel settings on Telegram, add the bot as an Administrator, and ensure "Post Messages" is checked.`;
+    }
+    
+    res.status(400).json({ 
+      success: false, 
+      errorType: type,
+      error: `getChat API Error: ${description} (Raw: "${rawError}")`
+    });
+  }
+});
+
 app.post('/api/submit-shayari', (req, res) => {
   const { text, category, author, highlightedWords, uploaderUsername, newCategory } = req.body;
   if (!text || !category) {
@@ -160,7 +727,7 @@ app.post('/api/submit-shayari', (req, res) => {
   res.status(201).json({ success: true, shayari: newShayari });
 });
 
-app.post('/api/approve-shayari', (req, res) => {
+app.post('/api/approve-shayari', async (req, res) => {
   const { id } = req.body;
   const index = db.pending.findIndex(s => s.id === id);
   if (index === -1) {
@@ -175,7 +742,20 @@ app.post('/api/approve-shayari', (req, res) => {
   db.pending.splice(index, 1);
   db.approved.unshift(item);
   saveDb();
-  res.json({ success: true, shayari: item });
+
+  // Automate auto-post to Telegram if enabled (Requirement 1, 2)
+  let telegramResult: { success: boolean; error?: string; approvalId: string } = { success: false, error: 'Telegram configuration disabled or inactive.', approvalId: '' };
+  try {
+    telegramResult = await publishApprovedShayariToTelegram(item);
+  } catch (err: any) {
+    telegramResult = { success: false, error: err?.message || 'Verification exception', approvalId: '' };
+  }
+
+  res.json({ 
+    success: true, 
+    shayari: item,
+    telegram: telegramResult
+  });
 });
 
 app.post('/api/decline-shayari', (req, res) => {
@@ -226,6 +806,12 @@ app.post('/api/add-official-shayari', (req, res) => {
 
   db.approved.unshift(officialShayari);
   saveDb();
+
+  // Automate auto-post to Telegram if enabled
+  sendShayariToTelegram(officialShayari).catch(err => {
+    console.error('[Telegram] Official post integration failure:', err);
+  });
+
   res.status(201).json({ success: true, shayari: officialShayari });
 });
 
@@ -558,8 +1144,18 @@ async function startServer() {
     // Production mode
     const distPath = path.join(process.cwd(), 'dist');
     
-    // Serve static files (except for dynamic sitemap and index routes)
-    app.use(express.static(distPath, { index: false }));
+    // Serve static files with 1-year max-age Cache-Control headers for performance
+    app.use(express.static(distPath, { 
+      index: false,
+      maxAge: '1y',
+      setHeaders: (res, filePath) => {
+        if (filePath.match(/\.(js|css|woff2?|eot|ttf|otf|png|svg|ico)$/)) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        } else {
+          res.setHeader('Cache-Control', 'public, max-age=86400, must-revalidate');
+        }
+      }
+    }));
 
     app.get('*', (req, res) => {
       const url = req.originalUrl;

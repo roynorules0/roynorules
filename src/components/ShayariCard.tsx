@@ -17,6 +17,7 @@ interface ShayariCardProps {
   isListening: boolean;
   onFocus?: (sh: Shayari) => void;
   onOpenImmersive?: () => void;
+  allShayaris?: Shayari[];
 }
 
 export default function ShayariCard({
@@ -32,11 +33,41 @@ export default function ShayariCard({
   isListening,
   onFocus,
   onOpenImmersive,
+  allShayaris,
 }: ShayariCardProps) {
+  // --- VIEWPORT INTERSECTION LAZY ENGINE ---
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [isInViewport, setIsInViewport] = useState(() => {
+    // Fast path: bypass lazy rendering for initial view cards (e.g. index < 4) to bypass layouts shift.
+    return index < 4;
+  });
+
+  useEffect(() => {
+    if (isInViewport) return;
+    if (typeof window === 'undefined' || !window.IntersectionObserver) {
+      setIsInViewport(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInViewport(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '250px' } // Pre-render when 250px near screen
+    );
+    if (cardRef.current) {
+      observer.observe(cardRef.current);
+    }
+    return () => observer.disconnect();
+  }, [isInViewport]);
+
   // --- STATE FOR ACTIONS ---
   const [copied, setCopied] = useState(false);
   const [shared, setShared] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
+  const [isRelatedExpanded, setIsRelatedExpanded] = useState(false);
   
   // --- PREMIUM UX STATE ---
   const [history, setHistory] = useState<Shayari[]>([shayari]);
@@ -446,8 +477,29 @@ export default function ShayariCard({
     }
   };
 
+  if (!isInViewport) {
+    return (
+      <div
+        ref={cardRef}
+        className="relative bg-zinc-950/45 border border-white/5 min-h-[420px] sm:min-h-[440px] rounded-[24px] p-6 flex flex-col justify-between"
+      >
+        <div className="h-3 bg-zinc-900/50 rounded-md w-1/3 animate-pulse" />
+        <div className="space-y-3.5 py-6">
+          <div className="h-3.5 bg-zinc-900/50 rounded-md w-full animate-pulse" />
+          <div className="h-3.5 bg-zinc-900/50 rounded-md w-5/6 animate-pulse" />
+          <div className="h-3.5 bg-zinc-900/50 rounded-md w-4/5 animate-pulse" />
+        </div>
+        <div className="flex justify-between items-center pt-2">
+          <div className="h-9 bg-zinc-900/50 rounded-xl w-24 animate-pulse" />
+          <div className="h-9 bg-zinc-900/50 rounded-xl w-16 animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <motion.div
+      ref={cardRef}
       initial={{ opacity: 0, y: 30 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: Math.min(index * 0.08, 0.4) }}
@@ -813,6 +865,62 @@ export default function ShayariCard({
           <ArrowRight size={14} className="stroke-[2.5]" />
         </button>
       </div>
+
+      {/* RELATED ENGINE: 4-6 RECOMMENDED SHAYARIS */}
+      {allShayaris && allShayaris.length > 0 && (
+        <div className="w-full border-t border-white/5 pt-4 mt-3 z-10 text-left pointer-events-auto shrink-0">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsRelatedExpanded(!isRelatedExpanded);
+            }}
+            className="flex items-center gap-2 text-[10px] font-mono tracking-wider text-zinc-500 hover:text-red-400 uppercase transition cursor-pointer select-none active:scale-95 bg-zinc-950/40 px-3 py-1.5 rounded-lg border border-zinc-900"
+          >
+            <Sparkles size={11} className={`text-red-500 animate-pulse transition-transform duration-500 ${isRelatedExpanded ? 'rotate-180' : ''}`} />
+            <span>{isRelatedExpanded ? 'Hide Related Feelings (4)' : 'Show Related Shayari (4)'}</span>
+          </button>
+
+          <AnimatePresence>
+            {isRelatedExpanded && (
+              <motion.div
+                initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                animate={{ opacity: 1, height: 'auto', marginTop: 12 }}
+                exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                  {allShayaris
+                    .filter(s => s.id !== activeShayari.id)
+                    .filter(s => s.category === activeShayari.category)
+                    .slice(0, 4)
+                    .map((sh, idx) => (
+                      <div
+                        key={sh.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Transition current active card to this shayari!
+                          setHistory((prev) => [...prev, sh]);
+                          setHistoryIndex((prev) => prev + 1);
+                          if (onFocus) onFocus(sh);
+                          showToast(`Feeling loaded into main focus: related verse #${idx + 1} 💫`);
+                        }}
+                        className="p-3 rounded-xl bg-zinc-950/80 border border-zinc-900/60 hover:border-red-500/25 transition duration-300 hover:bg-zinc-900/40 cursor-pointer select-none group/rel"
+                      >
+                        <div className="flex items-center justify-between gap-1.5 mb-1 text-[7.5px] font-mono text-zinc-600 uppercase font-bold">
+                          <span className="truncate">{sh.category}</span>
+                          <span className="shrink-0">— {sh.author}</span>
+                        </div>
+                        <p className="text-zinc-400 group-hover/rel:text-zinc-200 text-[10px] font-serif leading-relaxed line-clamp-2 italic">
+                          {sh.text}
+                        </p>
+                      </div>
+                    ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
 
       {/* Dynamic Glowing progress indicator for auto-shuffling */}
       {isAutoShuffleOn && !isLocked && !showQuickMenu && (

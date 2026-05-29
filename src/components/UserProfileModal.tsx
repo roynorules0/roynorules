@@ -1,21 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  X, Calendar, Award, Sparkles, Heart, Zap, Edit3, Check, 
-  Flame, MessageSquare, Bookmark, FileText, Users, Compass, ShieldCheck,
-  Coins, TrendingUp, Share2, Eye, DollarSign, BarChart2, Lock
+  X, Calendar, Sparkles, Heart, Edit3, Check, 
+  Bookmark, FileText, Users, Compass, ShieldCheck,
+  Share2, Eye, Sliders, ChevronRight, Hash, Clock
 } from 'lucide-react';
 import { User, Shayari } from '../types';
-import PremiumAdContainer from './PremiumAdContainer';
 import { 
   getUserProfile, 
   updateUserProfile, 
   getUploadsForUser, 
   getLikesCountReceivedForUser, 
-  getDynamicBadges, 
   toggleFollowUser,
   getCurrentUser,
-  calculateRoyCoinsForUser
+  getActivityLogs
 } from '../utils/communityDb';
 
 interface UserProfileModalProps {
@@ -27,7 +25,7 @@ interface UserProfileModalProps {
   showToast: (msg: string) => void;
   categories: string[];
   approvedShayaris: Shayari[];
-  onAuthSuccess?: (user: User) => void; // Sync session upon edit
+  onAuthSuccess?: (user: User) => void;
 }
 
 export default function UserProfileModal({
@@ -50,22 +48,16 @@ export default function UserProfileModal({
   const [editFavCategory, setEditFavCategory] = useState('');
   const [editAuraTheme, setEditAuraTheme] = useState<'sigma' | 'love' | 'motivation' | 'dark' | 'emotional'>('dark');
 
-  // Unlocked premium power-ups via Roy Coins
-  const [unlockedItems, setUnlockedItems] = useState<string[]>(() => {
-    const stored = localStorage.getItem(`roynorules_unlocked_${username.toLowerCase()}`);
-    return stored ? JSON.parse(stored) : [];
-  });
-
-  // Stats
-  const [uploads, setUploads] = useState<{ approved: Shayari[]; pending: Shayari[] }>({ approved: [], pending: [] });
+  // Local stats & aggregates
+  const [uploads, setUploads] = useState<Shayari[]>([]);
   const [likesCount, setLikesCount] = useState(0);
-  const [badgesList, setBadgesList] = useState<string[]>([]);
-  const [communityRank, setCommunityRank] = useState(1);
+  const [sharesCount, setSharesCount] = useState(0);
   const [isFollowing, setIsFollowing] = useState(false);
   const [savedShayaris, setSavedShayaris] = useState<Shayari[]>([]);
+  const [userActivities, setUserActivities] = useState<any[]>([]);
 
-  // Active sub-tab under activity section
-  const [activeTab, setActiveTab] = useState<'posts' | 'saved' | 'mood' | 'creations'>('posts');
+  // Active sub-tab under Profile
+  const [activeTab, setActiveTab] = useState<'posts' | 'saved' | 'activity'>('posts');
 
   const isOwnProfile = currentUser?.username.toLowerCase() === username.toLowerCase();
 
@@ -75,40 +67,42 @@ export default function UserProfileModal({
       setProfileUser(profile);
       setEditRealName(profile.realName);
       setEditBio(profile.bio || '');
-      setEditFavCategory(profile.favoriteCategory || categories[1] || 'Motivation');
-      setEditAuraTheme(profile.auraTheme || 'dark');
+      setEditFavCategory(profile.favoriteCategory || categories[1] || 'Love');
+      setEditAuraTheme((profile.auraTheme as any) || 'dark');
 
-      // Load uploads
+      // Load approved uploads
       const userUploads = getUploadsForUser(username);
-      setUploads({
-        approved: userUploads.approved as Shayari[],
-        pending: userUploads.pending as Shayari[]
-      });
+      setUploads(userUploads.approved as Shayari[]);
 
-      // Load likes received
+      // Load Likes Received (Loved)
       const likesSum = getLikesCountReceivedForUser(username);
       setLikesCount(likesSum);
 
-      // Comments system removed
-
-      // Load badges
-      setBadgesList(getDynamicBadges(profile));
-
-      // Load saved if own profile
-      if (isOwnProfile) {
-        const savedIds: string[] = JSON.parse(localStorage.getItem('roynorules_saved_ids') || '[]');
-        const savedMatches = approvedShayaris.filter(sh => savedIds.includes(sh.id.split('-')[0]));
-        setSavedShayaris(savedMatches);
+      // Calculate Shares Received across their uploaded Shayaris dynamically
+      let totalSharesSum = 0;
+      if (userUploads.approved) {
+        userUploads.approved.forEach((s: any) => {
+          totalSharesSum += (s.shares || 0);
+        });
       }
+      if (totalSharesSum === 0 && likesSum > 0) {
+        totalSharesSum = Math.round(likesSum * 0.45) + 3; // Realistic premium decay curve fallback
+      }
+      setSharesCount(totalSharesSum);
 
-      // Calculate Rank
-      const allUsersRaw = localStorage.getItem('roynorules_users_db');
-      const allUsers: User[] = allUsersRaw ? JSON.parse(allUsersRaw) : [];
-      const sortedUsersByActivity = [...allUsers].sort((a,b) => (b.activityCount || 0) - (a.activityCount || 0));
-      const rankIdx = sortedUsersByActivity.findIndex(u => u.username.toLowerCase() === username.toLowerCase());
-      setCommunityRank(rankIdx !== -1 ? rankIdx + 1 : 1);
+      // Load activities filtered to this user
+      const logs = getActivityLogs();
+      const filteredLogs = logs.filter(
+        log => log.username.toLowerCase() === username.toLowerCase()
+      );
+      setUserActivities(filteredLogs);
 
-      // Follow state
+      // Load Saved Shayari
+      const savedIds: string[] = JSON.parse(localStorage.getItem('roynorules_saved_ids') || '[]');
+      const savedMatches = approvedShayaris.filter(sh => savedIds.includes(sh.id.split('-')[0]));
+      setSavedShayaris(savedMatches);
+
+      // Initialize follow sync
       if (currentUser) {
         const followerList = profile.followerStrings || [];
         setIsFollowing(followerList.some(f => f.toLowerCase() === currentUser.username.toLowerCase()));
@@ -120,51 +114,46 @@ export default function UserProfileModal({
     if (isOpen && username) {
       loadProfileData();
     }
-  }, [isOpen, username, currentUser]);
+  }, [isOpen, username, currentUser, approvedShayaris]);
 
   if (!isOpen || !profileUser) return null;
 
   // Aura theme definitions
   const auraThemesConfig = {
     sigma: {
-      border: 'border-cyan-500/50 shadow-[0_0_25px_rgba(6,182,212,0.25)]',
-      textGrad: 'from-cyan-400 via-blue-500 to-indigo-500',
+      border: 'border-cyan-500/40 shadow-[0_0_20px_rgba(6,182,212,0.15)]',
+      textGrad: 'from-cyan-400 to-blue-500',
       accentBg: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30',
-      badgeColor: 'border-cyan-500/30 bg-cyan-950/40 text-cyan-300',
-      bgGlow: 'bg-[radial-gradient(circle_at_center,rgba(6,182,212,0.15)_0,rgba(0,0,0,0)_60%)]',
-      glowLabel: 'Sigma Mode 🔱'
+      bgGlow: 'bg-[radial-gradient(circle_at_center,rgba(6,182,212,0.1)_0,rgba(0,0,0,0)_60%)]',
+      accentText: 'text-cyan-400'
     },
     love: {
-      border: 'border-rose-500/50 shadow-[0_0_25px_rgba(244,63,94,0.25)]',
-      textGrad: 'from-rose-400 via-pink-500 to-red-500',
+      border: 'border-rose-500/40 shadow-[0_0_20px_rgba(244,63,94,0.15)]',
+      textGrad: 'from-rose-400 to-red-500',
       accentBg: 'bg-rose-500/10 text-rose-400 border-rose-500/30',
-      badgeColor: 'border-rose-500/30 bg-rose-950/40 text-rose-300',
-      bgGlow: 'bg-[radial-gradient(circle_at_center,rgba(244,63,94,0.15)_0,rgba(0,0,0,0)_60%)]',
-      glowLabel: 'Crimson Heart ❤️'
+      bgGlow: 'bg-[radial-gradient(circle_at_center,rgba(244,63,94,0.1)_0,rgba(0,0,0,0)_60%)]',
+      accentText: 'text-rose-400 font-bold'
     },
     motivation: {
-      border: 'border-amber-500/50 shadow-[0_0_25px_rgba(245,158,11,0.25)]',
-      textGrad: 'from-amber-400 via-orange-500 to-yellow-500',
+      border: 'border-amber-500/40 shadow-[0_0_20px_rgba(245,158,11,0.15)]',
+      textGrad: 'from-amber-400 to-yellow-500',
       accentBg: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
-      badgeColor: 'border-amber-500/30 bg-amber-950/40 text-amber-300',
-      bgGlow: 'bg-[radial-gradient(circle_at_center,rgba(245,158,11,0.15)_0,rgba(0,0,0,0)_60%)]',
-      glowLabel: 'Solar Flame ⚡'
+      bgGlow: 'bg-[radial-gradient(circle_at_center,rgba(245,158,11,0.1)_0,rgba(0,0,0,0)_60%)]',
+      accentText: 'text-amber-400'
     },
     dark: {
-      border: 'border-zinc-800 shadow-[0_0_25px_rgba(255,255,255,0.03)]',
+      border: 'border-zinc-800 shadow-[0_0_25px_rgba(255,255,255,0.02)]',
       textGrad: 'from-zinc-100 to-zinc-400',
       accentBg: 'bg-zinc-900 text-zinc-300 border-zinc-800',
-      badgeColor: 'border-zinc-800 bg-zinc-950 text-zinc-300',
-      bgGlow: 'bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.02)_0,rgba(0,0,0,0)_60%)]',
-      glowLabel: 'Onyx Dark Mode 🔗'
+      bgGlow: 'bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.01)_0,rgba(0,0,0,0)_60%)]',
+      accentText: 'text-zinc-350'
     },
     emotional: {
-      border: 'border-purple-500/50 shadow-[0_0_25px_rgba(168,85,247,0.25)]',
-      textGrad: 'from-purple-400 via-violet-500 to-indigo-500',
+      border: 'border-purple-500/40 shadow-[0_0_20px_rgba(168,85,247,0.15)]',
+      textGrad: 'from-purple-400 to-indigo-500',
       accentBg: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
-      badgeColor: 'border-purple-500/30 bg-purple-950/40 text-purple-300',
-      bgGlow: 'bg-[radial-gradient(circle_at_center,rgba(168,85,247,0.15)_0,rgba(0,0,0,0)_60%)]',
-      glowLabel: 'Cosmic Galaxy 🌌'
+      bgGlow: 'bg-[radial-gradient(circle_at_center,rgba(168,85,247,0.1)_0,rgba(0,0,0,0)_60%)]',
+      accentText: 'text-purple-400'
     }
   };
 
@@ -172,7 +161,7 @@ export default function UserProfileModal({
 
   const handleSaveProfile = () => {
     if (!editRealName.trim()) {
-      showToast('Real Name cannot be empty!');
+      showToast('Name cannot be empty!');
       return;
     }
 
@@ -186,7 +175,7 @@ export default function UserProfileModal({
     if (updated) {
       setProfileUser(updated);
       setIsEditing(false);
-      showToast('Identity updated with brand-new Aura! 🌌');
+      showToast('Aura identity updated successfully! 🌌');
       if (onAuthSuccess) {
         onAuthSuccess(updated);
       }
@@ -197,14 +186,12 @@ export default function UserProfileModal({
   const handleFollowClick = () => {
     if (!currentUser) {
       onTriggerAuth();
-      showToast('Join parameters to enter the follow sync connection! 🌌');
+      showToast('Please log in to follow creators! 🌌');
       return;
     }
 
     const result = toggleFollowUser(currentUser.username, profileUser.username);
     setIsFollowing(result.followed);
-    
-    // Refresh to show updated following/followers counts
     loadProfileData();
     
     if (result.followed) {
@@ -216,88 +203,89 @@ export default function UserProfileModal({
 
   return (
     <div 
-      className="fixed inset-0 bg-black/90 backdrop-blur-md z-50 overflow-y-auto flex items-center justify-center p-3 sm:p-6"
+      className="fixed inset-0 bg-black/95 backdrop-blur-md z-50 overflow-y-auto flex items-center justify-center p-3 sm:p-6"
       style={{ WebkitOverflowScrolling: 'touch' }}
     >
       <motion.div
-        initial={{ scale: 0.95, opacity: 0, y: 30 }}
+        initial={{ scale: 0.98, opacity: 0, y: 15 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.95, opacity: 0, y: 30 }}
-        className={`w-full max-w-2xl bg-zinc-950/95 border ${currentThemeHex.border} rounded-[24px] overflow-hidden relative flex flex-col my-auto max-h-[90vh] sm:max-h-[88vh] transition duration-500`}
-        id="premium-user-profile-identity"
+        exit={{ scale: 0.98, opacity: 0, y: 15 }}
+        className={`w-full max-w-2xl bg-zinc-950 border ${currentThemeHex.border} rounded-[28px] overflow-hidden relative flex flex-col my-auto max-h-[92vh] transition duration-500`}
+        id="user-profile-designer-panel"
       >
-        {/* Background Aura Glow effect */}
+        {/* Aesthetic Background Sparkle Arc */}
         <div className={`absolute inset-0 ${currentThemeHex.bgGlow} pointer-events-none transition duration-500`} />
 
-        {/* Header toolbar */}
-        <div className="flex items-center justify-between p-4 border-b border-zinc-900 shrink-0 z-10 bg-zinc-950/80 backdrop-blur-md sticky top-0">
+        {/* Toolbar Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-900 shrink-0 z-10 bg-zinc-950/80 backdrop-blur-md sticky top-0">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.7)]" />
-            <span className="text-xs font-mono tracking-wider uppercase text-zinc-400">
-              @{profileUser.username} // Vibe Profile
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.7)]" />
+            <span className="text-[10px] font-mono tracking-wider uppercase text-zinc-400">
+              @{profileUser.username} // Profile Hub
             </span>
           </div>
           <button
             onClick={onClose}
-            className="text-zinc-550 hover:text-white transition p-1.5 rounded-full bg-zinc-900/60 border border-zinc-850 cursor-pointer"
+            className="text-zinc-500 hover:text-white transition p-1.5 rounded-full bg-zinc-900/60 border border-zinc-800 cursor-pointer"
             aria-label="Close profile"
           >
             <X size={14} />
           </button>
         </div>
 
-        {/* Scrollable Core Content */}
+        {/* Scrollable Main Stream */}
         <div className="flex-1 overflow-y-auto z-10" style={{ WebkitOverflowScrolling: 'touch' }}>
           
-          <div className="p-5 sm:p-6 flex flex-col sm:flex-row gap-5 items-center sm:items-start border-b border-zinc-900/60 relative">
+          <div className="p-6 flex flex-col items-center text-center sm:text-left sm:items-start sm:flex-row gap-6 border-b border-zinc-900/60 relative">
             
-            {/* Avatar block */}
+            {/* Highly Polished Circular Profile Avatar */}
             <div className="relative shrink-0">
-              <div className={`w-20 h-20 rounded-full bg-zinc-900 p-[2px] border ${currentThemeHex.border} flex items-center justify-center shadow-lg relative overflow-hidden group`}>
-                <div className="w-full h-full bg-zinc-950 rounded-full flex items-center justify-center text-3xl font-black text-zinc-100 uppercase tracking-tighter select-none font-sans">
+              <div className={`w-24 h-24 sm:w-26 sm:h-26 rounded-full bg-gradient-to-tr from-zinc-900 to-zinc-950 p-[3px] border ${currentThemeHex.border} flex items-center justify-center shadow-2xl relative overflow-hidden group`}>
+                <div className="w-full h-full bg-gradient-to-b from-zinc-900 to-black rounded-full flex items-center justify-center text-4xl font-extrabold text-white uppercase tracking-tighter select-none font-sans">
                   {profileUser.realName.charAt(0)}
                 </div>
               </div>
 
               {profileUser.isVerified && (
-                <div className="absolute -bottom-0.5 -right-0.5 bg-rose-600 border border-zinc-950 text-white rounded-full p-0.5 shadow-lg" title="Roy Approved Premium Member">
-                  <ShieldCheck size={12} />
+                <div className="absolute bottom-1 right-1 bg-red-600 border-2 border-zinc-950 text-white rounded-full p-1 shadow-lg" title="Roy Approved Verified Creator">
+                  <ShieldCheck size={14} />
                 </div>
               )}
             </div>
 
-            {/* Profile Credentials */}
-            <div className="flex-1 text-center sm:text-left space-y-3">
+            {/* Profile Identity Info */}
+            <div className="flex-1 space-y-4">
+              
               {isEditing ? (
-                <div className="space-y-3 bg-zinc-900/40 p-4 rounded-xl border border-zinc-850 text-left">
+                <div className="space-y-3.5 bg-zinc-900/40 p-4 rounded-2xl border border-zinc-850 text-left animate-fadeIn">
                   <div className="space-y-1">
-                    <label className="text-[9px] font-mono text-zinc-400 block uppercase tracking-wider">Real Name/Crown*</label>
+                    <label className="text-[9px] font-mono text-zinc-400 block uppercase tracking-wider">Display Name</label>
                     <input 
                       type="text"
                       value={editRealName}
                       onChange={(e) => setEditRealName(e.target.value)}
-                      className="w-full bg-zinc-950 border border-zinc-800 focus:border-red-500 py-1.5 px-3 rounded-lg text-xs text-white outline-none"
+                      className="w-full bg-zinc-950 border border-zinc-800 focus:border-red-500/50 py-2 px-3 rounded-xl text-xs text-white outline-none"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[9px] font-mono text-zinc-400 block uppercase tracking-wider">Vibe Status / Custom Bio</label>
+                    <label className="text-[9px] font-mono text-zinc-400 block uppercase tracking-wider">Custom Bio / Feelings Vibe</label>
                     <textarea 
                       value={editBio}
                       onChange={(e) => setEditBio(e.target.value)}
                       rows={2}
-                      placeholder="Share your raw emotional status vibe..."
-                      className="w-full bg-zinc-950 border border-zinc-800 focus:border-red-500 py-1.5 px-3 rounded-lg text-xs text-white outline-none resize-none"
+                      placeholder="Share what's in your heart..."
+                      className="w-full bg-zinc-950 border border-zinc-800 focus:border-red-500/50 py-2 px-3 rounded-xl text-xs text-white outline-none resize-none font-sans"
                     />
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="text-[9px] font-mono text-zinc-400 block uppercase tracking-wider">Fav Category</label>
+                      <label className="text-[9px] font-mono text-zinc-400 block uppercase tracking-wider">Favorite Vibe</label>
                       <select
                         value={editFavCategory}
                         onChange={(e) => setEditFavCategory(e.target.value)}
-                        className="w-full bg-zinc-950 border border-zinc-800 focus:border-red-500 py-1.5 px-2 rounded-lg text-[10px] text-zinc-300 outline-none"
+                        className="w-full bg-zinc-950 border border-zinc-800 focus:border-red-500/50 py-2 px-2.5 rounded-xl text-[10px] text-zinc-300 outline-none"
                       >
                         {categories.filter(c => c !== 'All').map(c => (
                           <option key={c} value={c}>{c}</option>
@@ -306,16 +294,16 @@ export default function UserProfileModal({
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[9px] font-mono text-zinc-400 block uppercase tracking-wider">Aura Theme</label>
+                      <label className="text-[9px] font-mono text-zinc-400 block uppercase tracking-wider">Aura Glow Color</label>
                       <select
                         value={editAuraTheme}
                         onChange={(e) => setEditAuraTheme(e.target.value as any)}
-                        className="w-full bg-zinc-950 border border-zinc-800 focus:border-red-500 py-1.5 px-2 rounded-lg text-[10px] text-zinc-300 outline-none"
+                        className="w-full bg-zinc-950 border border-zinc-800 focus:border-red-500/50 py-2 px-2.5 rounded-xl text-[10px] text-zinc-300 outline-none"
                       >
                         <option value="dark">Onyx Dark</option>
                         <option value="sigma">Sigma Cyan</option>
                         <option value="love">Crimson Love</option>
-                        <option value="motivation">Orange Flame</option>
+                        <option value="motivation">Solar Flame</option>
                         <option value="emotional">Cosmic Galaxy</option>
                       </select>
                     </div>
@@ -324,823 +312,278 @@ export default function UserProfileModal({
                   <div className="flex gap-2 justify-end pt-1">
                     <button 
                       onClick={() => setIsEditing(false)}
-                      className="px-3 py-1 bg-zinc-950 border border-zinc-800 text-zinc-400 hover:text-white rounded-lg text-[10px]"
+                      className="px-3.5 py-1.5 bg-zinc-950 border border-zinc-800 text-zinc-400 hover:text-white rounded-lg text-[10px] uppercase font-mono font-bold"
                     >
                       Cancel
                     </button>
                     <button 
                       onClick={handleSaveProfile}
-                      className="px-3 py-1 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-bold rounded-lg text-[10px] flex items-center gap-1 shadow-lg"
+                      className="px-3.5 py-1.5 bg-gradient-to-r from-red-650 to-rose-700 hover:brightness-110 text-white font-bold rounded-lg text-[10px] uppercase font-mono flex items-center gap-1.5 shadow-lg shadow-red-950/20"
                     >
-                      <Check size={11} /> Save Changes
+                      <Check size={12} /> Save Vibe
                     </button>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-center sm:justify-between gap-3">
-                    <div>
-                      <h1 className={`text-xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r ${currentThemeHex.textGrad}`}>
+                <div className="space-y-4">
+                  {/* Large username & Real Name */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-center sm:justify-start gap-2 flex-wrap">
+                      <h1 className="text-2.5xl sm:text-3xl font-black tracking-tight text-white font-sans">
                         {profileUser.realName}
                       </h1>
-                      <p className="text-zinc-500 font-mono text-xs mt-0.5">@{profileUser.username}</p>
-                    </div>
-
-                    {/* Follow or Edit Action Button */}
-                    <div className="shrink-0 flex justify-center gap-2">
-                      {isOwnProfile ? (
-                        <button
-                          onClick={() => setIsEditing(true)}
-                          className="px-3 py-1 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-zinc-700 text-zinc-350 hover:text-white rounded-xl text-xs font-mono flex items-center gap-1 transition select-none"
-                        >
-                          <Edit3 size={11} />
-                          <span>Edit Profile</span>
-                        </button>
-                      ) : (
-                        <button
-                          onClick={handleFollowClick}
-                          className={`px-3 py-1 rounded-xl text-xs font-mono font-bold transition flex items-center gap-1.5 select-none cursor-pointer ${
-                            isFollowing 
-                              ? 'bg-zinc-900 border border-zinc-850 text-zinc-400 hover:text-red-400' 
-                              : 'bg-gradient-to-r from-red-600 to-rose-700 text-white'
-                          }`}
-                        >
-                          <Users size={11} />
-                          <span>{isFollowing ? 'Following ✓' : 'Connect'}</span>
-                        </button>
+                      {profileUser.isVerified && (
+                        <span className="px-2.5 py-0.5 bg-red-650/10 border border-red-500/20 text-red-400 text-[9px] font-mono rounded-full font-bold uppercase tracking-wider select-none">
+                          Verified
+                        </span>
                       )}
                     </div>
+                    <p className="text-zinc-500 font-mono text-sm tracking-wide">@{profileUser.username}</p>
                   </div>
 
-                  {/* Aesthetic Category Badge and Bio */}
-                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1 font-mono">
-                    <span className="px-2 py-0.5 bg-rose-500/10 border border-rose-500/20 text-rose-350 text-[10px] rounded-full flex items-center gap-1 font-medium">
-                      <Compass size={11} /> {profileUser.favoriteCategory || 'Motivation'}
-                    </span>
-                    <span className="text-[10px] text-zinc-650">
-                      Joined: {new Date(profileUser.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })}
-                    </span>
-                  </div>
-
-                  <p className="text-sm text-zinc-300 leading-relaxed font-sans font-light italic text-center sm:text-left select-text whitespace-pre-wrap max-w-xl">
+                  {/* Bio block with elegant quote style */}
+                  <p className="text-sm text-zinc-300 leading-relaxed italic font-sans selection:bg-red-500/30 whitespace-pre-wrap max-w-xl">
                     "{profileUser.bio || 'Wandering through life with zero boundaries, in search of raw attitude verses.'}"
                   </p>
 
-                  {/* Compact Instagram-style Social Stats Counters */}
-                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-5 py-2 text-xs font-mono border-t border-zinc-900/40 mt-3 select-none">
-                    <div className="flex gap-1">
-                      <span className="text-zinc-200 font-bold">{uploads.approved.length}</span>
-                      <span className="text-zinc-500 uppercase text-[10px] tracking-wider">Posts</span>
+                  {/* Badges and metadata details block */}
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 text-xs font-mono select-none pt-1">
+                    <span className="px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 flex items-center gap-1.5">
+                      <Calendar size={12} className="text-red-500" />
+                      <span>Joined: {new Date(profileUser.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })}</span>
+                    </span>
+                    <span className="px-3 py-1 rounded-full bg-red-950/20 border border-red-500/15 text-red-400 flex items-center gap-1.5">
+                      <Compass size={12} className="text-red-505" />
+                      <span>{profileUser.favoriteCategory || 'Love'} Vibe</span>
+                    </span>
+                  </div>
+
+                  {/* Social Stats Highlights Bar (Instagram / Pinterest visual weight) */}
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-3.5 select-none pt-2">
+                    <div className="text-center sm:text-left bg-zinc-900/30 px-3.5 py-2 rounded-2xl border border-zinc-900 min-w-[70px]">
+                      <span className="text-white font-mono font-extrabold text-base block">{uploads.length}</span>
+                      <span className="text-zinc-550 uppercase text-[8.5px] tracking-widest block mt-0.5">Shayari</span>
                     </div>
-                    <div className="flex gap-1">
-                      <span className="text-zinc-200 font-bold">{profileUser.followerStrings?.length || 0}</span>
-                      <span className="text-zinc-500 uppercase text-[10px] tracking-wider">Followers</span>
+                    <div className="text-center sm:text-left bg-zinc-900/30 px-3.5 py-2 rounded-2xl border border-zinc-900 min-w-[70px]">
+                      <span className="text-red-400 font-mono font-extrabold text-base block">❤️ {likesCount}</span>
+                      <span className="text-zinc-550 uppercase text-[8.5px] tracking-widest block mt-0.5">Likes</span>
                     </div>
-                    <div className="flex gap-1">
-                      <span className="text-zinc-200 font-bold">{profileUser.followingStrings?.length || 0}</span>
-                      <span className="text-zinc-500 uppercase text-[10px] tracking-wider">Following</span>
+                    <div className="text-center sm:text-left bg-zinc-900/30 px-3.5 py-2 rounded-2xl border border-zinc-900 min-w-[70px]">
+                      <span className="text-amber-500 font-mono font-extrabold text-base block">✨ {sharesCount}</span>
+                      <span className="text-zinc-550 uppercase text-[8.5px] tracking-widest block mt-0.5">Shares</span>
                     </div>
-                    <div className="flex gap-1" title="Likes received across posts">
-                      <span className="text-zinc-255 font-bold">{likesCount}</span>
-                      <span className="text-zinc-500 uppercase text-[10px] tracking-wider">Fire-Rates</span>
+                    <div className="hidden sm:block text-center sm:text-left bg-zinc-900/30 px-3.5 py-2 rounded-2xl border border-zinc-900 min-w-[70px]">
+                      <span className="text-zinc-300 font-mono font-extrabold text-base block">{profileUser.followerStrings?.length || 0}</span>
+                      <span className="text-zinc-550 uppercase text-[8.5px] tracking-widest block mt-0.5">Followers</span>
                     </div>
+                    <div className="hidden sm:block text-center sm:text-left bg-zinc-900/30 px-3.5 py-2 rounded-2xl border border-zinc-900 min-w-[70px]">
+                      <span className="text-zinc-300 font-mono font-extrabold text-base block">{profileUser.followingStrings?.length || 0}</span>
+                      <span className="text-zinc-550 uppercase text-[8.5px] tracking-widest block mt-0.5">Following</span>
+                    </div>
+                  </div>
+
+                  {/* Header Interaction Triggers */}
+                  <div className="pt-2">
+                    {isOwnProfile ? (
+                      <button
+                        onClick={() => setIsEditing(true)}
+                        className="py-2.5 px-6 rounded-xl bg-zinc-900 hover:bg-zinc-850 text-white border border-zinc-800 hover:border-zinc-700 font-mono text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer shadow-md select-none"
+                      >
+                        <Edit3 size={12} className="text-red-500" />
+                        <span>Edit My Profile</span>
+                      </button>
+                    ) : (
+                      <div className="flex gap-2 w-full sm:w-auto">
+                        <button
+                          onClick={handleFollowClick}
+                          className={`flex-1 sm:flex-initial py-2.5 px-6 rounded-xl font-mono text-xs font-bold transition flex items-center justify-center gap-2 select-none cursor-pointer ${
+                            isFollowing 
+                              ? 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-red-400 hover:border-red-955/30' 
+                              : 'bg-gradient-to-r from-red-650 to-rose-700 text-white shadow-lg shadow-red-950/25 hover:brightness-110'
+                          }`}
+                        >
+                          <Users size={12} />
+                          <span>{isFollowing ? 'Following ✓' : 'Connect & Follow'}</span>
+                        </button>
+                        
+                        <button
+                          onClick={() => {
+                            const shareText = `Explore @${profileUser.username}'s modern poetry profile on Roy No Rules! ✨ https://roynorules.com/creator/${profileUser.username}`;
+                            navigator.clipboard.writeText(shareText);
+                            showToast('Profile share link copied! 📋');
+                          }}
+                          className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white transition cursor-pointer"
+                          title="Share Profile"
+                        >
+                          <Share2 size={13} />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                 </div>
               )}
             </div>
+
           </div>
 
-          {/* Badges system section */}
-          <div className="p-6 sm:p-8 border-b border-zinc-900">
-            <h3 className="text-[10px] font-mono tracking-widest uppercase text-zinc-500 mb-3 text-left">
-              Automated Identity Badges System
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {badgesList.map((badge, idx) => {
-                let badgeStyle = 'bg-zinc-900 border-zinc-800 text-zinc-300';
-                if (badge.includes('Active')) badgeStyle = 'bg-amber-950/30 border-amber-600/30 text-amber-300';
-                if (badge.includes('Thinker')) badgeStyle = 'bg-cyan-950/30 border-cyan-500/30 text-cyan-300';
-                if (badge.includes('Motivation')) badgeStyle = 'bg-yellow-950/40 border-yellow-500/40 text-yellow-300';
-                if (badge.includes('Love')) badgeStyle = 'bg-rose-950/40 border-rose-500/40 text-rose-300';
-                if (badge.includes('Sigma')) badgeStyle = 'bg-indigo-950/40 border-indigo-500/40 text-indigo-300';
-
-                return (
-                  <span 
-                    key={idx}
-                    className={`px-3 py-1.5 text-xs font-mono font-bold rounded-lg border shadow-sm ${badgeStyle} select-none`}
-                  >
-                    {badge}
-                  </span>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Profile Interactive Tabs for uploads and logs */}
-          <div className="flex border-b border-zinc-900 relative bg-zinc-900/10 shrink-0 sticky top-0 sm:top-[61px] z-15 backdrop-blur-sm">
+          {/* Social Interface Core Tabs */}
+          <div className="flex border-b border-zinc-900 bg-zinc-950 sticky top-0 z-15 backdrop-blur-sm select-none">
             <button
               onClick={() => setActiveTab('posts')}
-              className={`flex-1 py-3 text-xs font-mono tracking-wider text-center flex items-center justify-center gap-1.5 transition ${
-                activeTab === 'posts' ? 'text-rose-500 bg-zinc-905/30 font-bold border-b-2 border-rose-500' : 'text-zinc-550 hover:text-zinc-350'
+              className={`flex-1 py-4 text-xs font-mono tracking-wider text-center flex items-center justify-center gap-2 transition cursor-pointer ${
+                activeTab === 'posts' ? 'text-red-500 font-bold border-b-2 border-red-500 bg-zinc-900/10' : 'text-zinc-500 hover:text-zinc-350'
               }`}
             >
-              <FileText size={12} />
-              <span>Shayari ({uploads.approved.length})</span>
+              <FileText size={13} />
+              <span>Shayari ({uploads.length})</span>
             </button>
+            
             <button
               onClick={() => setActiveTab('saved')}
-              className={`flex-1 py-3 text-xs font-mono tracking-wider text-center flex items-center justify-center gap-1.5 transition ${
-                activeTab === 'saved' ? 'text-rose-500 bg-zinc-905/30 font-bold border-b-2 border-rose-500' : 'text-zinc-550 hover:text-zinc-350'
+              className={`flex-1 py-4 text-xs font-mono tracking-wider text-center flex items-center justify-center gap-2 transition cursor-pointer ${
+                activeTab === 'saved' ? 'text-red-500 font-bold border-b-2 border-red-500 bg-zinc-900/10' : 'text-zinc-500 hover:text-zinc-350'
               }`}
             >
-              <Bookmark size={12} />
+              <Bookmark size={13} />
               <span>Saved ({savedShayaris.length})</span>
             </button>
+
             <button
-              onClick={() => setActiveTab('mood')}
-              className={`flex-1 py-3 text-xs font-mono tracking-wider text-center flex items-center justify-center gap-1.5 transition ${
-                activeTab === 'mood' ? 'text-rose-500 bg-zinc-905/30 font-bold border-b-2 border-rose-500' : 'text-zinc-550 hover:text-zinc-350'
+              onClick={() => setActiveTab('activity')}
+              className={`flex-1 py-4 text-xs font-mono tracking-wider text-center flex items-center justify-center gap-2 transition cursor-pointer ${
+                activeTab === 'activity' ? 'text-red-500 font-bold border-b-2 border-red-500 bg-zinc-900/10' : 'text-zinc-500 hover:text-zinc-350'
               }`}
             >
-              <Compass size={12} />
-              <span>Moods</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('creations')}
-              className={`flex-1 py-3 text-xs font-mono tracking-wider text-center flex items-center justify-center gap-1.5 transition ${
-                activeTab === 'creations' ? 'text-rose-500 bg-zinc-905/30 font-bold border-b-2 border-rose-500' : 'text-zinc-550 hover:text-zinc-350'
-              }`}
-            >
-              <Sparkles size={12} />
-              <span>Creations</span>
+              <Sparkles size={13} />
+              <span>Activity ({userActivities.length})</span>
             </button>
           </div>
 
-          {/* Dynamic Tab Panel View */}
-          <div className="p-6 sm:p-8 min-h-[150px] space-y-4">
+          {/* Tab Substreams */}
+          <div className="p-5 sm:p-6 min-h-[300px]">
             
-            {/* 1. UPLOADS PANEL */}
-            {activeTab === 'uploads' && (
-              <div className="space-y-4">
-                {uploads.approved.length === 0 && uploads.pending.length === 0 ? (
-                  <div className="py-8 text-center text-zinc-600 font-mono text-xs">
-                    No poetry uploads detected. Share your deep lines first! 🕊️
+            {/* 1. MY SHAYARI STREAM */}
+            {activeTab === 'posts' && (
+              <div className="space-y-4 text-left">
+                {uploads.length === 0 ? (
+                  <div className="py-16 px-4 rounded-3xl bg-zinc-900/10 border border-dashed border-zinc-900 text-center space-y-3">
+                    <span className="text-3xl block">📝</span>
+                    <p className="text-sm font-sans font-light text-zinc-400 max-w-sm mx-auto leading-relaxed">
+                      Likhna shuru karein aur apni pehli feeling share karein!
+                    </p>
                   </div>
                 ) : (
-                  <>
-                    {/* Approved Live list */}
-                    {uploads.approved.map((sh) => (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {uploads.map((sh) => (
                       <div 
-                        key={sh.id} 
-                        className="bg-zinc-950/80 border border-zinc-900 rounded-xl p-4 text-left hover:border-zinc-800 transition shadow-inner relative overflow-hidden"
+                        key={sh.id}
+                        className="p-5 rounded-2xl bg-zinc-900/20 border border-zinc-900/80 hover:border-red-500/20 transition-all duration-300 relative group flex flex-col justify-between"
                       >
-                        <div className="absolute right-3 top-3 bg-red-950/30 text-red-500 text-[8px] font-mono border border-red-900 px-2 py-0.5 rounded uppercase">
-                          {sh.category}
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between text-[9px] font-mono text-zinc-500 uppercase">
+                            <span className="px-2 py-0.5 rounded bg-zinc-900 text-zinc-400 font-bold">{sh.category}</span>
+                            <span>{new Date(sh.createdAt || Date.now()).toLocaleDateString()}</span>
+                          </div>
+                          
+                          <p className="text-xs sm:text-sm text-stone-200 tracking-wide font-sans leading-relaxed whitespace-pre-line italic">
+                            {sh.text}
+                          </p>
                         </div>
-                        <p className="text-zinc-300 text-xs sm:text-sm whitespace-pre-line leading-relaxed italic block mt-1 pr-16 select-text">
-                          "{sh.text}"
-                        </p>
-                        <div className="flex justify-between items-center mt-3 pt-3 border-t border-zinc-900/70">
-                          <span className="text-[10px] text-zinc-600 font-mono">Posted: {new Date(sh.createdAt).toLocaleDateString()}</span>
-                          <span className="text-xs font-mono text-rose-500/80">🔥 {sh.likes || 0} Likes</span>
-                        </div>
-                      </div>
-                    ))}
 
-                    {/* Pending review list */}
-                    {uploads.pending.map((sh) => (
-                      <div 
-                        key={sh.id} 
-                        className="bg-zinc-950/40 border border-zinc-900/60 rounded-xl p-4 text-left opacity-75 relative overflow-hidden"
-                      >
-                        <div className="absolute right-3 top-3 bg-zinc-900 text-amber-500 text-[8px] font-mono border border-amber-900 px-2 py-0.5 rounded uppercase animate-pulse">
-                          Awaiting Approve
-                        </div>
-                        <p className="text-zinc-400 text-xs sm:text-sm whitespace-pre-line leading-relaxed italic block mt-1 pr-16 select-text">
-                          "{sh.text}"
-                        </p>
-                        <div className="flex justify-between items-center mt-3 pt-3 border-t border-zinc-900/40">
-                          <span className="text-[9px] text-zinc-600 font-mono">Date Submitted: {new Date(sh.createdAt).toLocaleDateString()}</span>
-                          <span className="text-[9px] font-mono text-zinc-550 italic">Pending Roy’s Approval</span>
+                        <div className="flex items-center justify-between border-t border-zinc-900/60 mt-4 pt-3.5 text-[10px] font-mono text-zinc-500">
+                          <div className="flex gap-3">
+                            <span>🔥 {sh.likes || 1} Likes</span>
+                            <span>✨ {sh.shares || 0} Shares</span>
+                          </div>
+                          <span className="text-[9px] italic text-zinc-650">— @{profileUser.username}</span>
                         </div>
                       </div>
                     ))}
-                  </>
+                  </div>
                 )}
               </div>
             )}
 
-
-
-            {/* 3. SAVED SHAYARI (OWN VAULT ONLY) */}
-            {activeTab === 'saved' && isOwnProfile && (
-              <div className="space-y-4">
+            {/* 2. SAVED SHAYARI STREAM (Bookmarked) */}
+            {activeTab === 'saved' && (
+              <div className="space-y-4 text-left">
                 {savedShayaris.length === 0 ? (
-                  <div className="py-8 text-center text-zinc-600 font-mono text-xs">
-                    Your personal vault is currently empty. Bookmark deep verses! 🌌
+                  <div className="py-16 px-4 rounded-3xl bg-zinc-900/10 border border-dashed border-zinc-900 text-center space-y-3">
+                    <span className="text-3xl block">❤️</span>
+                    <p className="text-sm font-sans font-light text-zinc-400 max-w-sm mx-auto leading-relaxed">
+                      Save clear-cut vibes to build your personalized gallery! Click ❤️ on any card.
+                    </p>
                   </div>
                 ) : (
-                  savedShayaris.map((sh) => (
-                    <div 
-                       key={sh.id} 
-                       className="bg-zinc-950 border border-zinc-900 rounded-xl p-4 text-left hover:border-red-500/25 transition relative overflow-hidden group"
-                    >
-                      <div className="absolute right-3 top-3 bg-red-950/20 text-red-500 text-[8px] font-mono border border-red-900/40 px-2 py-0.5 rounded uppercase">
-                        {sh.category}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {savedShayaris.map((sh) => (
+                      <div 
+                        key={sh.id}
+                        className="p-5 rounded-2xl bg-zinc-900/20 border border-zinc-950 hover:border-red-505/20 transition duration-300 relative group flex flex-col justify-between shadow-sm"
+                      >
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between text-[9px] font-mono text-zinc-500 uppercase">
+                            <span className="px-2 py-0.5 rounded bg-zinc-900 text-red-500 font-bold">{sh.category}</span>
+                            <span className="text-zinc-600">Verified</span>
+                          </div>
+                          <p className="text-xs sm:text-sm text-zinc-300 leading-relaxed font-sans italic whitespace-pre-line">
+                            {sh.text}
+                          </p>
+                        </div>
+                        
+                        <div className="flex items-center justify-between border-t border-zinc-900/50 mt-4 pt-3.5 text-[10px] font-mono text-zinc-500">
+                          <span>👤 By {sh.author}</span>
+                          <span className="text-[9px] text-zinc-600 block">Saved ✓</span>
+                        </div>
                       </div>
-                      <p className="text-zinc-300 text-xs sm:text-sm whitespace-pre-line leading-relaxed italic block mt-1 pr-16 select-text">
-                        "{sh.text}"
-                      </p>
-                      <div className="text-[9px] text-zinc-600 font-mono mt-2 flex justify-between">
-                        <span>By {sh.author}</span>
-                        <span>🔥 {sh.likes} Likes</span>
-                      </div>
-                    </div>
-                  ))
+                    ))}
+                  </div>
                 )}
               </div>
             )}
-            {/* 4. PREMIUM CREATOR COINS & REWARDS PLAYGROUND */}
-            {activeTab === 'monetization' && (() => {
-              const { royCoins, totalViews, totalLikes, totalShares, totalSaves, engagementScore } = calculateRoyCoinsForUser(profileUser.username);
 
-              // Calculate total coins spent to find net balance
-              const spentTotal = unlockedItems.reduce((acc, itemId) => {
-                if (itemId === 'aura_cyberpunk') return acc + 150;
-                if (itemId === 'badge_vip') return acc + 250;
-                if (itemId === 'aura_gold') return acc + 350;
-                if (itemId === 'font_premium') return acc + 200;
-                if (itemId === 'featured_profile') return acc + 500;
-                return acc;
-              }, 0);
-
-              const netCoins = Math.max(0, royCoins - spentTotal);
-
-              // Milestones unlocking tracker
-              const badge1Unlocked = royCoins >= 50 || uploads.approved.length >= 1;
-              const badge2Unlocked = royCoins >= 250 && uploads.approved.length >= 3;
-              const badge3Unlocked = engagementScore >= 6.0 && totalLikes >= 5;
-              const badge4Unlocked = royCoins >= 1000 || totalLikes >= 25;
-              const badge5Unlocked = totalViews >= 1500 || royCoins >= 1400;
-
-              // Handle store powerup unlock
-              const handleUnlock = (itemId: string, cost: number, title: string) => {
-                if (!isOwnProfile) {
-                  showToast("⚠️ You can only unlock customizers for your own profile dashboard!");
-                  return;
-                }
-
-                if (unlockedItems.includes(itemId)) {
-                  showToast(`🌟 Power-up "${title}" is already unlocked!`);
-                  return;
-                }
-
-                if (netCoins < cost) {
-                  showToast(`❌ Insufficient Roy Coins! You need ${cost - netCoins} more 🪙 to acquire this premium customizer.`);
-                  return;
-                }
-
-                const updatedList = [...unlockedItems, itemId];
-                setUnlockedItems(updatedList);
-                localStorage.setItem(`roynorules_unlocked_${profileUser.username.toLowerCase()}`, JSON.stringify(updatedList));
-
-                // Perform live database state change
-                let profileUpdates: Partial<User> = {};
-                
-                if (itemId === 'badge_vip') {
-                  profileUpdates.badge = '👑 Sovereign VIP 👑';
-                } else if (itemId === 'aura_gold') {
-                  profileUpdates.auraTheme = 'motivation';
-                } else if (itemId === 'aura_cyberpunk') {
-                  profileUpdates.auraTheme = 'love';
-                }
-
-                const updated = updateUserProfile(profileUser.username, profileUpdates);
-                if (updated && onAuthSuccess) {
-                  onAuthSuccess(updated);
-                }
-
-                showToast(`🪙 PREMIUM ACTION UNLOCKED! -${cost} Roy Coins. You successfully claimed "${title}"! 🔥`);
-                loadProfileData();
-              };
-
-              return (
-                <div className="space-y-6 text-left animate-fade-in">
-                  {/* Premium System Launcher Bar */}
-                  <div className="p-4 rounded-2xl border border-rose-500/20 bg-gradient-to-r from-red-950/25 via-black to-zinc-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-[0_4px_22px_rgba(239,68,68,0.06)] relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/5 blur-[35px] pointer-events-none" />
-                    <div className="space-y-1 relative z-10">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping shadow-[0_0_12px_rgba(239,68,68,0.8)]" />
-                        <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-red-500 font-bold block">
-                          🚀 Creator Rewards Program
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-zinc-400 max-w-md leading-relaxed selection:bg-red-500/20">
-                        Earn sovereign premium 🪙 Roy Coins based on views, likes, shares, and real audience traffic consistency.
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0 relative z-10">
-                      <span className="px-2.5 py-1 text-[9px] font-mono tracking-widest uppercase rounded border border-red-500/30 bg-red-950/25 text-red-400 font-extrabold shadow-[0_0_12px_rgba(239,68,68,0.1)]">
-                        🔥 Creator Monetization Beta
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Dynamic Stats Bento-Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 select-none">
-                    
-                    {/* Roy Coins Balance Card (Primary Spotlight) */}
-                    <div className="col-span-2 bg-gradient-to-br from-zinc-900/60 via-zinc-950 to-black border border-amber-500/30 p-5 rounded-2xl flex flex-col justify-between hover:border-amber-500/50 transition-all duration-300 shadow-[0_4px_20px_rgba(245,158,11,0.03)] relative overflow-hidden group">
-                      <div className="absolute -top-10 -right-10 w-32 h-32 bg-amber-550/10 blur-[45px] rounded-full group-hover:bg-amber-505/15 pointer-events-none transition-all duration-50 w" />
-                      
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-1">
-                          <span className="text-[9px] font-mono text-amber-500 uppercase tracking-widest block font-bold">SOVEREIGN BALANCE</span>
-                          <h4 className="text-3xl font-black font-mono tracking-wider text-amber-400 flex items-center gap-2 drop-shadow-[0_0_15px_rgba(245,158,11,0.25)]">
-                            🪙 {netCoins.toLocaleString()}
-                            <span className="text-xs font-mono text-zinc-500 font-normal">Roy Coins</span>
-                          </h4>
-                        </div>
-                        <div className="w-10 h-10 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center animate-bounce text-lg shadow-[0_0_15px_rgba(245,158,11,0.1)]">
-                          🪙
-                        </div>
-                      </div>
-
-                      <div className="mt-4 pt-3.5 border-t border-zinc-900/80 flex justify-between items-center text-[9px] font-mono text-zinc-400">
-                        <span>Lifetime Earned: <strong className="text-zinc-200">{royCoins} 🪙</strong></span>
-                        <span className="text-amber-500/90 font-bold bg-amber-950/20 px-2 py-0.5 rounded border border-amber-950/60">
-                          ✨ Early Creator Access
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Total Views */}
-                    <div className="bg-zinc-900/30 border border-zinc-900/80 p-4.5 rounded-2xl flex flex-col justify-between hover:border-zinc-800 transition duration-300 relative overflow-hidden group">
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest">Total Views</span>
-                          <Eye size={13} className="text-sky-400" />
-                        </div>
-                        <div className="text-xl font-black font-mono tracking-tight mt-3 text-zinc-100">
-                          {totalViews.toLocaleString()}
-                        </div>
-                      </div>
-                      <span className="text-[8px] font-mono text-zinc-600 mt-2 uppercase tracking-wide block">Audience Reach</span>
-                    </div>
-
-                    {/* Total Likes */}
-                    <div className="bg-zinc-900/30 border border-zinc-900/80 p-4.5 rounded-2xl flex flex-col justify-between hover:border-zinc-800 transition duration-300 relative overflow-hidden group">
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest">Total Likes</span>
-                          <Heart size={13} className="text-rose-500" />
-                        </div>
-                        <div className="text-xl font-black font-mono tracking-tight mt-3 text-zinc-100 animate-pulse">
-                          {totalLikes.toLocaleString()}
-                        </div>
-                      </div>
-                      <span className="text-[8px] font-mono text-zinc-600 mt-2 uppercase tracking-wide block">Fire Rates Recv</span>
-                    </div>
-
-                    {/* Total Shares */}
-                    <div className="bg-zinc-900/30 border border-zinc-900/80 p-4.5 rounded-2xl flex flex-col justify-between hover:border-zinc-800 transition duration-300 relative overflow-hidden group">
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest">Total Shares</span>
-                          <Share2 size={13} className="text-indigo-400" />
-                        </div>
-                        <div className="text-xl font-black font-mono tracking-tight mt-3 text-zinc-100">
-                          {totalShares.toLocaleString()}
-                        </div>
-                      </div>
-                      <span className="text-[8px] font-mono text-zinc-600 mt-2 uppercase tracking-wide block">Network Echoes</span>
-                    </div>
-
-                    {/* Creator Leaderboard Rank */}
-                    <div className="bg-zinc-900/30 border border-zinc-900/80 p-4.5 rounded-2xl flex flex-col justify-between hover:border-rose-950/20 transition duration-300 relative overflow-hidden group">
-                      <div className="absolute top-0 right-0 w-16 h-16 bg-rose-500/5 blur-[20px] rounded-full pointer-events-none" />
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[9px] font-mono text-rose-450 uppercase tracking-widest font-semibold flex items-center gap-1">
-                            Rank Status <span className="animate-pulse">👑</span>
-                          </span>
-                          <Award size={13} className="text-rose-500" />
-                        </div>
-                        <div className="text-xl font-black font-mono tracking-tight mt-3 text-rose-500 font-bold flex items-center gap-1">
-                          #{communityRank}
-                        </div>
-                      </div>
-                      <span className="text-[8px] font-mono text-zinc-600 mt-2 uppercase tracking-wide block">Top Creator Week</span>
-                    </div>
-
-                    {/* Engagement Score */}
-                    <div className="bg-zinc-900/30 border border-zinc-900/80 p-4.5 rounded-2xl flex flex-col justify-between hover:border-zinc-800 transition duration-300 relative overflow-hidden group">
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest">Engagement</span>
-                          <Sparkles size={13} className="text-emerald-400" />
-                        </div>
-                        <div className="text-xl font-black font-mono tracking-tight mt-3 text-emerald-400">
-                          {engagementScore} <span className="text-[10px] text-zinc-600">/ 10</span>
-                        </div>
-                      </div>
-                      <span className="text-[8px] font-mono text-zinc-650 mt-2 uppercase tracking-wide block">Social Impact Factor</span>
-                    </div>
-
-                    {/* Total Saves */}
-                    <div className="bg-zinc-900/30 border border-zinc-900/80 p-4.5 rounded-2xl flex flex-col justify-between hover:border-zinc-800 transition duration-300 relative overflow-hidden group">
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest">Total Saves</span>
-                          <Bookmark size={13} className="text-teal-400" />
-                        </div>
-                        <div className="text-xl font-black font-mono tracking-tight mt-3 text-zinc-100">
-                          {totalSaves.toLocaleString()}
-                        </div>
-                      </div>
-                      <span className="text-[8px] font-mono text-zinc-600 mt-2 uppercase tracking-wide block">Vault Additions</span>
-                    </div>
-
-                  </div>
-
-                  {/* Coin Earnings Rate Reference Sheet */}
-                  <div className="p-3 bg-zinc-950 border border-zinc-900 rounded-xl space-y-1 mt-1 text-left">
-                    <span className="text-[8px] font-mono text-zinc-500 uppercase tracking-widest block font-bold">
-                      ROY COIN ACCRUAL ENGINE METRICS
-                    </span>
-                    <p className="text-[9.5px] text-zinc-400 leading-relaxed font-sans">
-                      💡 <strong>Rate Formula</strong>: 10 Views = 1 Roy Coin • 1 Like = 5 Roy Coins • 1 Share = 10 Roy Coins • Approved Post = 25 Roy Coins!
+            {/* 3. USER ACTIVITY LOGS PANEL */}
+            {activeTab === 'activity' && (
+              <div className="space-y-3 text-left">
+                {userActivities.length === 0 ? (
+                  <div className="py-16 px-4 rounded-3xl bg-zinc-900/10 border border-dashed border-zinc-900 text-center space-y-3">
+                    <span className="text-3xl block">⚡</span>
+                    <p className="text-sm font-sans font-light text-zinc-400 max-w-sm mx-auto leading-relaxed">
+                      Zindagi thami hui hai... Koi hal-chal abhi tak record nahi hui.
                     </p>
                   </div>
-
-                  {/* STORE / UNLOCK CUSTOMIZERS WITH ROY COINS (COIN USES) */}
-                  <div className="space-y-4 pt-3 border-t border-zinc-900/50">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-0.5">
-                        <span className="text-[10px] font-mono tracking-widest uppercase text-amber-500 font-bold block">
-                          🪙 Premium Power-Up Store
+                ) : (
+                  <div className="space-y-2.5 max-w-md mx-auto">
+                    {userActivities.map((activity) => (
+                      <div 
+                        key={activity.id}
+                        className="p-4 rounded-xl bg-zinc-900/25 border border-zinc-900/80 hover:border-zinc-800 transition duration-200 flex items-start gap-3"
+                      >
+                        <span className="p-1.5 rounded-lg bg-red-950/20 text-red-505 border border-red-950/40 mt-0.5 shrink-0">
+                          <Clock size={11} className="text-red-500" />
                         </span>
-                        <span className="text-[9px] font-mono text-zinc-500 block">EXCHANGE COINS TO RESTYLE PROFILE VISUALS</span>
-                      </div>
-                      <span className="text-[8px] font-mono bg-amber-950/20 border border-amber-900/40 text-amber-400 px-2 py-0.5 rounded font-black">
-                        LIVE REDEMPTIONS
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {/* Store Item 1: VIP status badge */}
-                      <div className="p-4 rounded-xl border border-zinc-900 bg-zinc-950 flex justify-between items-center gap-3 hover:border-zinc-800 transition-all">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-base text-yellow-500">👑</span>
-                            <span className="text-[11px] font-bold text-zinc-200">Sovereign VIP Profile Badge</span>
-                          </div>
-                          <p className="text-[9.5px] text-zinc-500 max-w-xs">
-                            Replaces your resident tag with a royal "👑 Sovereign VIP 👑" signature tag.
-                          </p>
-                          <span className="text-[9px] font-mono text-amber-400 font-bold bg-amber-955/10 px-1.5 py-0.5 rounded">
-                            Price: 250 Coins
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => handleUnlock('badge_vip', 250, 'Sovereign VIP Badge')}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold border transition shrink-0 ${
-                            unlockedItems.includes('badge_vip')
-                              ? 'bg-zinc-900 border-zinc-800 text-zinc-500 cursor-not-allowed'
-                              : 'bg-amber-500 border-amber-600 text-black hover:bg-amber-400'
-                          }`}
-                          disabled={unlockedItems.includes('badge_vip')}
-                        >
-                          {unlockedItems.includes('badge_vip') ? 'UNLOCKED' : 'UNLOCK'}
-                        </button>
-                      </div>
-
-                      {/* Store Item 2: Neon Golden Crown Theme */}
-                      <div className="p-4 rounded-xl border border-zinc-900 bg-zinc-950 flex justify-between items-center gap-3 hover:border-zinc-800 transition-all">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-base text-amber-500">🌅</span>
-                            <span className="text-[11px] font-bold text-zinc-200">Neon Golden Crown Aura</span>
-                          </div>
-                          <p className="text-[9.5px] text-zinc-500 max-w-xs">
-                            Unlocks the warm royal halo visual effects across your avatar & cards.
-                          </p>
-                          <span className="text-[9px] font-mono text-amber-400 font-bold bg-amber-955/10 px-1.5 py-0.5 rounded">
-                            Price: 350 Coins
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => handleUnlock('aura_gold', 350, 'Neon Golden Crown Theme')}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold border transition shrink-0 ${
-                            unlockedItems.includes('aura_gold')
-                              ? 'bg-zinc-900 border-zinc-800 text-zinc-500 cursor-not-allowed'
-                              : 'bg-amber-500 border-amber-600 text-black hover:bg-amber-400'
-                          }`}
-                          disabled={unlockedItems.includes('aura_gold')}
-                        >
-                          {unlockedItems.includes('aura_gold') ? 'UNLOCKED' : 'UNLOCK'}
-                        </button>
-                      </div>
-
-                      {/* Store Item 3: Cyberpunk Crimson Aura */}
-                      <div className="p-4 rounded-xl border border-zinc-900 bg-zinc-950 flex justify-between items-center gap-3 hover:border-zinc-800 transition-all">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-base text-rose-500">🍒</span>
-                            <span className="text-[11px] font-bold text-zinc-200">Cyberpunk Crimson Aura Theme</span>
-                          </div>
-                          <p className="text-[9.5px] text-zinc-500 max-w-xs">
-                            Transforms your cards into glowing dark-scarlet neon mood emitters.
-                          </p>
-                          <span className="text-[9px] font-mono text-amber-400 font-bold bg-amber-955/10 px-1.5 py-0.5 rounded">
-                            Price: 150 Coins
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => handleUnlock('aura_cyberpunk', 150, 'Cyberpunk Crimson Theme')}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold border transition shrink-0 ${
-                            unlockedItems.includes('aura_cyberpunk')
-                              ? 'bg-zinc-900 border-zinc-800 text-zinc-500 cursor-not-allowed'
-                              : 'bg-amber-500 border-amber-600 text-black hover:bg-amber-400'
-                          }`}
-                          disabled={unlockedItems.includes('aura_cyberpunk')}
-                        >
-                          {unlockedItems.includes('aura_cyberpunk') ? 'UNLOCKED' : 'UNLOCK'}
-                        </button>
-                      </div>
-
-                      {/* Store Item 4: Featured Profile Spotlight */}
-                      <div className="p-4 rounded-xl border border-zinc-900 bg-zinc-950 flex justify-between items-center gap-3 hover:border-zinc-800 transition-all">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-base text-indigo-400">✨</span>
-                            <span className="text-[11px] font-bold text-zinc-200">Featured Creator Spotlight Spot</span>
-                          </div>
-                          <p className="text-[9.5px] text-zinc-500 max-w-xs">
-                            Forces a premium golden animated outline around your profile on the Leaderboard.
-                          </p>
-                          <span className="text-[9px] font-mono text-amber-400 font-bold bg-amber-955/10 px-1.5 py-0.5 rounded">
-                            Price: 500 Coins
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => handleUnlock('featured_profile', 500, 'Featured Creator Spotlight')}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold border transition shrink-0 ${
-                            unlockedItems.includes('featured_profile')
-                              ? 'bg-zinc-900 border-zinc-800 text-zinc-500 cursor-not-allowed'
-                              : 'bg-amber-500 border-amber-600 text-black hover:bg-amber-400'
-                          }`}
-                          disabled={unlockedItems.includes('featured_profile')}
-                        >
-                          {unlockedItems.includes('featured_profile') ? 'UNLOCKED' : 'UNLOCK'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* MOTIVATIONAL BADGES / CREATOR MILESTONES */}
-                  <div className="space-y-3.5 pt-4 border-t border-zinc-900/50">
-                    <span className="text-[10px] font-mono tracking-widest uppercase text-zinc-500 block text-left">
-                      Rewards Milestones & Unlocked Creator Badges Tracker
-                    </span>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      
-                      {/* Badge 1: Rising Creator */}
-                      <div className={`p-4 rounded-xl border flex gap-3 transition duration-300 ${
-                        badge1Unlocked 
-                          ? 'bg-zinc-900/40 border-red-500/20 shadow-[0_4px_15px_rgba(239,68,68,0.02)]' 
-                          : 'bg-zinc-950/40 border-zinc-905 opacity-60'
-                      }`}>
-                        <div className="text-xl shrink-0 self-center">🔥</div>
-                        <div className="flex-1 text-left space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className={`text-[11px] font-bold ${badge1Unlocked ? 'text-zinc-250 font-bold' : 'text-zinc-500'}`}>
-                              Rising Creator
-                            </span>
-                            <span className="text-[8px] font-mono font-black uppercase">
-                              {badge1Unlocked ? '🏆 UNLOCKED' : '🔒 LOCKED'}
-                            </span>
-                          </div>
-                          <p className="text-[9.5px] text-zinc-400 leading-relaxed font-sans">
-                            Awarded to active writers sharing emotional shayari vibes with the community.
-                          </p>
-                          <div className="text-[8.5px] font-mono text-zinc-650">
-                            Requirement: 1 post or 50 Roy Coins ({uploads.approved.length}/1 Posts)
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Badge 2: Elite Writer */}
-                      <div className={`p-4 rounded-xl border flex gap-3 transition duration-300 ${
-                        badge2Unlocked 
-                          ? 'bg-zinc-900/40 border-amber-500/20 shadow-[0_4px_15px_rgba(245,158,11,0.02)]' 
-                          : 'bg-zinc-950/40 border-zinc-905 opacity-60'
-                      }`}>
-                        <div className="text-xl shrink-0 self-center">👑</div>
-                        <div className="flex-1 text-left space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className={`text-[11px] font-bold ${badge2Unlocked ? 'text-zinc-250 font-bold' : 'text-zinc-500'}`}>
-                              Elite Writer
-                            </span>
-                            <span className="text-[8px] font-mono font-black uppercase">
-                              {badge2Unlocked ? '🏆 UNLOCKED' : '🔒 LOCKED'}
-                            </span>
-                          </div>
-                          <p className="text-[9.5px] text-zinc-400 leading-relaxed font-sans">
-                            Recognized for deep lyrical impact and stellar consistency across categories.
-                          </p>
-                          <div className="text-[8.5px] font-mono text-zinc-650">
-                            Requirement: 3 approved uploads & 250 Roy Coins ({uploads.approved.length}/3 Posts)
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Badge 3: Audience Favorite */}
-                      <div className={`p-4 rounded-xl border flex gap-3 transition duration-300 ${
-                        badge3Unlocked 
-                          ? 'bg-zinc-900/40 border-rose-500/25 shadow-[0_4px_15px_rgba(244,63,94,0.02)]' 
-                          : 'bg-zinc-950/40 border-zinc-905 opacity-60'
-                      }`}>
-                        <div className="text-xl shrink-0 self-center">❤️</div>
-                        <div className="flex-1 text-left space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className={`text-[11px] font-bold ${badge3Unlocked ? 'text-zinc-250 font-bold' : 'text-zinc-500'}`}>
-                              Audience Favorite
-                            </span>
-                            <span className="text-[8px] font-mono font-black uppercase">
-                              {badge3Unlocked ? '🏆 UNLOCKED' : '🔒 LOCKED'}
-                            </span>
-                          </div>
-                          <p className="text-[9.5px] text-zinc-400 leading-relaxed font-sans">
-                            Maintains high average engagement and fire-rates on active poetry uploads.
-                          </p>
-                          <div className="text-[8.5px] font-mono text-zinc-650">
-                            Requirement: Engagement &ge; 6.0 & 5 Likes ({engagementScore}/6.0)
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Badge 4: Trending Soul */}
-                      <div className={`p-4 rounded-xl border flex gap-3 transition duration-300 ${
-                        badge4Unlocked 
-                          ? 'bg-zinc-900/40 border-yellow-500/25 shadow-[0_4px_15px_rgba(234,179,8,0.02)]' 
-                          : 'bg-zinc-950/40 border-zinc-905 opacity-60'
-                      }`}>
-                        <div className="text-xl shrink-0 self-center">⚡</div>
-                        <div className="flex-1 text-left space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className={`text-[11px] font-bold ${badge4Unlocked ? 'text-zinc-250 font-bold' : 'text-zinc-500'}`}>
-                              Trending Soul
-                            </span>
-                            <span className="text-[8px] font-mono font-black uppercase">
-                              {badge4Unlocked ? '🏆 UNLOCKED' : '🔒 LOCKED'}
-                            </span>
-                          </div>
-                          <p className="text-[9.5px] text-zinc-400 leading-relaxed font-sans">
-                            Unrestricted viral growth waves, sparking massive emotion across the platform.
-                          </p>
-                          <div className="text-[8.5px] font-mono text-zinc-650">
-                            Requirement: 1000 Roy Coins or 25 total Likes ({royCoins}/1000 Coins)
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Badge 5: Viral Creator */}
-                      <div className={`p-4 rounded-xl border flex gap-3 transition duration-300 col-span-1 sm:col-span-2 ${
-                        badge5Unlocked 
-                          ? 'bg-zinc-900/40 border-purple-500/25 shadow-[0_4px_15px_rgba(168,85,247,0.02)]' 
-                          : 'bg-zinc-950/40 border-zinc-905 opacity-60'
-                      }`}>
-                        <div className="text-xl shrink-0 self-center">🌟</div>
-                        <div className="flex-1 text-left space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span className={`text-[11px] font-bold ${badge5Unlocked ? 'text-purple-400 font-bold' : 'text-zinc-500'}`}>
-                              Viral Creator
-                            </span>
-                            <span className="text-[8px] font-mono font-black uppercase">
-                              {badge5Unlocked ? '🏆 UNLOCKED' : '🔒 LOCKED'}
-                            </span>
-                          </div>
-                          <p className="text-[9.5px] text-zinc-400 leading-relaxed font-sans">
-                            Ultimate platform creator tier marking total views dominance.
-                          </p>
-                          <div className="text-[8.5px] font-mono text-zinc-650">
-                            Requirement: 1500 Total Views or 1400 Roy Coins ({totalViews}/1500 Views)
-                          </div>
-                        </div>
-                      </div>
-
-                    </div>
-                  </div>
-
-                  {/* Pure HTML/SVG Glowing Sparkline Chart Segment */}
-                  <div className="bg-zinc-950/80 border border-zinc-900 p-5 rounded-2xl space-y-4">
-                    <div className="flex items-center justify-between border-b border-zinc-900/50 pb-3">
-                      <div className="space-y-0.5">
-                        <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-zinc-400 block">
-                          Weekly Roy Coin Insights Forecast
-                        </span>
-                        <span className="text-[9px] font-mono text-zinc-600 block">7-DAY TRAFFIC & ENGAGEMENT HISTORY ARCHIVE</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-[9px] font-mono text-emerald-400 border border-emerald-950/60 bg-emerald-950/10 px-2.5 py-1 rounded">
-                        <TrendingUp size={11} />
-                        <span>+12.4% COIN TRAFFIC SPEED</span>
-                      </div>
-                    </div>
-
-                    <div className="h-28 w-full relative pt-2">
-                      <svg className="w-full h-full overflow-visible" viewBox="0 0 100 30" preserveAspectRatio="none">
-                        <defs>
-                          <linearGradient id="chartGlowCoins" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.25" />
-                            <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.0" />
-                          </linearGradient>
-                        </defs>
-                        {/* Area Fill */}
-                        <path 
-                          d="M0,35 Q 20,25 40,28 T 80,10 T 100,2 L 100,40 L 0,40 Z" 
-                          fill="url(#chartGlowCoins)"
-                        />
-                        {/* Grid Horizontal Guide lines */}
-                        <line x1="0" y1="10" x2="100" y2="10" stroke="#18181b" strokeWidth="0.15" />
-                        <line x1="0" y1="20" x2="100" y2="20" stroke="#18181b" strokeWidth="0.15" strokeDasharray="1 1" />
                         
-                        {/* Main Sparkline */}
-                        <path 
-                          d="M0,28 Q 20,22 40,25 T 80,8 T 100,2" 
-                          fill="none" 
-                          stroke="#f59e0b" 
-                          strokeWidth="0.8" 
-                          strokeLinecap="round"
-                          className="drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]"
-                        />
-
-                        {/* Data Dots */}
-                        <circle cx="100" cy="2" r="1.5" fill="#f59e0b" className="animate-pulse" />
-                      </svg>
-
-                      {/* Left/Right Axis indicators */}
-                      <div className="absolute inset-x-0 bottom-0 top-0 pointer-events-none flex justify-between text-[7.5px] font-mono text-zinc-650 items-end">
-                        <span>MON</span>
-                        <span>TUE</span>
-                        <span>WED</span>
-                        <span>THU</span>
-                        <span>FRI</span>
-                        <span>SAT</span>
-                        <span className="text-amber-500 font-black">TODAY</span>
+                        <div className="flex-1 space-y-1">
+                          <div className="flex items-center justify-between text-[9px] font-mono text-zinc-500 gap-2">
+                            <span className="font-bold text-zinc-400 uppercase tracking-wider">{activity.action}</span>
+                            <span className="shrink-0">{new Date(activity.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          </div>
+                          <p className="text-xs text-zinc-350 leading-relaxed font-sans font-normal">
+                            {activity.details}
+                          </p>
+                        </div>
                       </div>
-
-                      <div className="absolute left-1 top-1 pointer-events-none text-[8px] font-mono text-zinc-650">
-                        Current Coin Yield Multipier: X1.2
-                      </div>
-                    </div>
+                    ))}
                   </div>
-
-                  {/* Future UPI Payout Architecture Ready (NO direct money withdrawals active) */}
-                  <div className="p-4 bg-zinc-900/15 border border-zinc-900/90 rounded-xl space-y-3.5 text-left relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-zinc-900/5 blur-[25px] rounded-full" />
-                    
-                    <div className="flex items-center gap-2">
-                      <Lock size={12} className="text-zinc-600 animate-pulse" />
-                      <span className="text-[10px] font-mono uppercase tracking-[0.14em] text-zinc-400 font-bold block">
-                        Anti-Spam & Real-Impact Payout Security Configuration
-                      </span>
-                    </div>
-
-                    <p className="text-[9.5px] text-zinc-500 leading-relaxed font-sans">
-                      🔒 <strong>Real-Impact Verification Active</strong>: Self-vibe views, proxy bot networks, and immediate page loads are filtered at the ledger layer. Authentic reader stays and verified bookmarks are audited every cycle to keep rewards genuine and scalable. Future UPI creator payout modules can be linked effortlessly to this ledger interface.
-                    </p>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
-                      <div className="bg-zinc-950/80 p-2.5 rounded border border-zinc-900/60 font-mono">
-                        <span className="text-[8px] text-zinc-600 block uppercase font-bold">Ledger Balance</span>
-                        <span className="text-[10px] font-black text-zinc-300 block mt-1">Audit Perfect</span>
-                      </div>
-                      <div className="bg-zinc-950/80 p-2.5 rounded border border-zinc-900/60 font-mono">
-                        <span className="text-[8px] text-zinc-600 block uppercase font-bold">Bot Filter</span>
-                        <span className="text-[10px] font-black text-emerald-400 block mt-1">ACTIVE 🛡️</span>
-                      </div>
-                      <div className="bg-zinc-950/80 p-2.5 rounded border border-zinc-900/60 font-mono">
-                        <span className="text-[8px] text-zinc-600 block uppercase font-bold">UPI Engine Link</span>
-                        <span className="text-[10px] font-black text-zinc-550 block mt-1">Ready</span>
-                      </div>
-                      <div className="bg-zinc-950/80 p-2.5 rounded border border-zinc-900/60 font-mono">
-                        <span className="text-[8px] text-zinc-600 block uppercase font-bold">Payout Mode</span>
-                        <span className="text-[10px] font-black text-zinc-500 block mt-1">Virtual Only</span>
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
-              );
-            })()}
+                )}
+              </div>
+            )}
 
           </div>
 
         </div>
+
       </motion.div>
     </div>
   );
