@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, Heart, Plus, ShieldCheck, Check, Info, Award, Calendar, Clock, RefreshCw, Compass, Menu, Search, MessageSquare, Lock, User as UserIcon } from 'lucide-react';
+import { Sparkles, Heart, Plus, ShieldCheck, Check, Info, Award, Calendar, Clock, RefreshCw, Compass, Menu, Search, MessageSquare, Lock, User as UserIcon, ArrowRight } from 'lucide-react';
 
 import { Shayari, User } from './types';
 import { defaultShayaris, defaultCategories } from './data/defaultShayaris';
@@ -9,6 +9,7 @@ import CategorySlider from './components/CategorySlider';
 import ShayariCard from './components/ShayariCard';
 import SubmitModal from './components/SubmitModal';
 import AdminPanel from './components/AdminPanel';
+import AdminUnlockPopup from './components/AdminUnlockPopup';
 import ImageGeneratorModal from './components/ImageGeneratorModal';
 import VoiceShayariPlayer from './components/VoiceShayariPlayer';
 import MoodSelector, { MOODS_METADATA } from './components/MoodSelector';
@@ -37,6 +38,9 @@ import { emotionalQuestionPages, EmotionalQuestionPage } from './data/emotionalQ
 import EmotionalQuestionPageContainer from './components/EmotionalQuestionPageContainer';
 import CreateHubModal from './components/CreateHubModal';
 import MoodPostModal from './components/MoodPostModal';
+
+// SEO & Performance upgrade assets
+import { generateShayariSlug, generateDynamicMeta, syncDynamicMetaToDom } from './utils/seo';
 
 export default function App() {
   const [showIntro, setShowIntro] = useState(() => {
@@ -110,6 +114,7 @@ export default function App() {
   // 4. Modal and Control States
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+  const [isUnlockPopupOpen, setIsUnlockPopupOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [imageStudioShayari, setImageStudioShayari] = useState<Shayari | null>(null);
   const [activeVoiceShayari, setActiveVoiceShayari] = useState<Shayari | null>(null);
@@ -316,10 +321,13 @@ export default function App() {
       }
       canonical = domain + currentTrustPath;
     } else if (immersiveShayari) {
-      title = immersiveShayari.seoTitle || `${immersiveShayari.category} Shayari by ${immersiveShayari.author}`;
-      description = immersiveShayari.seoDesc || `${immersiveShayari.text.substring(0, 150).replace(/\n/g, ' ')}`;
-      const slugPath = immersiveShayari.slug || `${immersiveShayari.category.toLowerCase()}/shayari-${immersiveShayari.id}`;
+      const meta = generateDynamicMeta(immersiveShayari, domain);
+      title = meta.title;
+      description = meta.description;
+      const slugPath = generateShayariSlug(immersiveShayari);
       canonical = domain + '/' + slugPath;
+      // Inject standard meta in DOM
+      syncDynamicMetaToDom(meta);
     } else if (selectedCategory && selectedCategory !== 'All') {
       title = `${selectedCategory} Shayari & Status | Roy No Rules`;
       description = `Find the ultimate handpicked list of premium ${selectedCategory} Shayari, emotional status lines, and HD wallpaper downloads on Roy No Rules.`;
@@ -594,45 +602,6 @@ export default function App() {
     });
   };
 
-  // Logo click & tap counters for hidden admin access
-  const [logoClicks, setLogoClicks] = useState<number>(0);
-  const [lastLogoClickTime, setLastLogoClickTime] = useState<number>(0);
-
-  const handleLogoClickForTripleTap = () => {
-    const now = Date.now();
-    if (now - lastLogoClickTime < 450) {
-      const clicks = logoClicks + 1;
-      setLogoClicks(clicks);
-      if (clicks >= 2) {
-        setIsAdminPanelOpen(true);
-        showToast('Secret Gateway: Admin Console Unlocked! 🔒');
-        setLogoClicks(0);
-      }
-    } else {
-      setLogoClicks(0);
-    }
-    setLastLogoClickTime(now);
-  };
-
-  // Hidden corner triple-tap indicators
-  const cornerClicksRef = React.useRef<number>(0);
-  const lastCornerClickTimeRef = React.useRef<number>(0);
-
-  const handleCornerClick = () => {
-    const now = Date.now();
-    if (now - lastCornerClickTimeRef.current < 500) {
-      cornerClicksRef.current += 1;
-      if (cornerClicksRef.current >= 2) { // 3 taps: 0, 1, 2
-        setIsAdminPanelOpen(true);
-        showToast('Secret Gateway: Admin Console Unlocked via Hidden Corner! 🛡️');
-        cornerClicksRef.current = 0;
-      }
-    } else {
-      cornerClicksRef.current = 0;
-    }
-    lastCornerClickTimeRef.current = now;
-  };
-
   // Interactive 3-second Hold on Logo
   const handleHoldStart = (e: React.MouseEvent | React.TouchEvent) => {
     setHoldProgress(0);
@@ -648,8 +617,8 @@ export default function App() {
         if (holdIntervalRef.current) clearInterval(holdIntervalRef.current);
         holdIntervalRef.current = null;
         setHoldProgress(100);
-        setIsAdminPanelOpen(true);
-        showToast('Secret Logo Signature: Admin Lock Unlocked! 🔒');
+        setIsUnlockPopupOpen(true);
+        showToast('Decrypt Gateway Enabled: Complete Admin Verification 🔒');
         setTimeout(() => setHoldProgress(0), 1000);
       }
     }, 50);
@@ -846,13 +815,6 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Invisible Triple-Tap Hidden Top Corner for Secret Admin Login */}
-      <div 
-        onClick={handleCornerClick} 
-        className="absolute top-0 right-0 w-16 h-16 z-[100] cursor-default select-none opacity-0"
-        title="Hidden Config"
-      />
-
       {/* Floating Canvas Particles */}
       <ParticlesBg activeMoodColors={currentMood?.particlesColors} speedMultiplier={currentMood?.speed} />
 
@@ -889,9 +851,7 @@ export default function App() {
               onMouseLeave={handleHoldEnd}
               onTouchStart={handleHoldStart}
               onTouchEnd={handleHoldEnd}
-              onClick={handleLogoClickForTripleTap}
               className="relative group cursor-pointer select-none flex flex-col items-center justify-center"
-              title="Long Press 3 Secs or Triple-Tap to Unlock Admin Panel"
             >
               {/* Subtle dynamic backdrop halo when holding to unlock */}
               {holdProgress > 0 && (
@@ -969,16 +929,45 @@ export default function App() {
           />
         ) : (
           <>
+            {/* BRAND HERO INTRO & WRITE YOUR OWN SHAYARI ACTIVE CALL-TO-ACTION */}
+            <div className="text-center py-6 sm:py-8 space-y-4 max-w-xl mx-auto select-none border-b border-white/5 pb-6">
+              <span className="text-[10px] sm:text-[11px] font-mono tracking-[0.3em] font-black text-red-500 uppercase animate-pulse block">
+                👑 India’s cinematic emotional shayari universe
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-wide leading-tight px-2 text-balance">
+                Feelings • Shayari • Mood • Stories
+              </h2>
+              <p className="text-[11px] sm:text-xs text-zinc-500 font-medium tracking-[0.1em] font-mono">
+                Discover, edit, and render high-definition quotes and poetry layouts.
+              </p>
+              
+              {/* Direct 'Write Your Own Shayari' glassmorphic action button */}
+              <div className="pt-2 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSubmitModalOpen(true);
+                    showToast('Launching live workspace: Write Your Own Shayari... ✍🔥');
+                  }}
+                  className="px-6 py-3.5 rounded-full bg-gradient-to-r from-red-650 to-rose-700 hover:from-red-550 hover:to-rose-600 border border-white/10 text-white font-extrabold text-xs uppercase tracking-widest flex items-center gap-2 shadow-[0_5px_22px_rgba(239,68,68,0.25)] hover:shadow-[0_5px_30px_rgba(239,68,68,0.4)] transition-all duration-300 hover:scale-103 cursor-pointer select-none active:scale-95"
+                >
+                  <Sparkles size={14} className="text-yellow-405 animate-pulse" />
+                  <span>Write Your Own Shayari</span>
+                  <ArrowRight size={13} className="stroke-[2.5]" />
+                </button>
+              </div>
+            </div>
+
             {/* PREMIUM FEEDBACK SEARCH SECTION */}
             <SearchByFeeling
-          approvedList={approvedList}
-          onSearchResults={(q, results) => {
-            setSearchQuery(q);
-            setSearchedShayaris(results);
-          }}
-          showToast={showToast}
-          onSelectMood={handleSelectMood}
-        />
+              approvedList={approvedList}
+              onSearchResults={(q, results) => {
+                setSearchQuery(q);
+                setSearchedShayaris(results);
+              }}
+              showToast={showToast}
+              onSelectMood={handleSelectMood}
+            />
 
         {/* MOOD QUICK ACCESS BUBBLES */}
         <div className="py-2">
@@ -1421,6 +1410,22 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* MODAL 3b: HIDDEN ADMIN UNLOCK POPUP */}
+      <AnimatePresence>
+        {isUnlockPopupOpen && (
+          <motion.div key="modal-admin-unlock" style={{ display: 'contents' }}>
+            <AdminUnlockPopup
+              onClose={() => setIsUnlockPopupOpen(false)}
+              onSuccess={() => {
+                setIsUnlockPopupOpen(false);
+                setIsAdminPanelOpen(true);
+              }}
+              showToast={showToast}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* MODAL 4: VOICE SHAYARI AUDIO MAIN STATION */}
       <AnimatePresence>
         {activeVoiceShayari && (
@@ -1556,7 +1561,7 @@ export default function App() {
               allShayaris={approvedList}
               onSelectShayari={(sh) => {
                 setImmersiveShayari(sh);
-                const slugPath = sh.slug || `${sh.category.toLowerCase()}/vibe-${sh.id}`;
+                const slugPath = generateShayariSlug(sh);
                 window.history.pushState(null, '', `/${slugPath}`);
                 window.dispatchEvent(new Event('popstate'));
               }}

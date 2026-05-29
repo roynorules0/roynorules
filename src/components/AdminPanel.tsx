@@ -1,21 +1,69 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Lock, Check, ToggleLeft, Trash2, Plus, Users, ShieldAlert, Award, ChevronRight, Activity, ShieldCheck, ShieldBan, ShieldOff, Trash, Eye, Megaphone } from 'lucide-react';
-import { Shayari, User } from '../types';
-import { getUsers, setBlockUserStatus, deleteUserFromDb, getActivityLogs } from '../utils/communityDb';
-import PremiumAdContainer, { getStoredAdsConfig, saveAdsConfig, AdsConfig } from './PremiumAdContainer';
+import { 
+  X, BarChart3, BookOpen, Users, ShieldAlert, ShieldCheck, Megaphone, 
+  Settings, Globe, Mail, Plus, Trash2, Check, RefreshCw, Layers,
+  Search, Menu, ExternalLink, HelpCircle, ArrowRight, Zap, Play, Grid
+} from 'lucide-react';
+import { Shayari, Category, User } from '../types';
+import { 
+  getUsers, setBlockUserStatus, deleteUserFromDb, getActivityLogs,
+  calculateRoyCoinsForUser, getUploadsForUser
+} from '../utils/communityDb';
+import PremiumAdContainer from './PremiumAdContainer';
 
 interface AdminPanelProps {
   categories: string[];
   pendingShayaris: Shayari[];
   approvedShayaris: Shayari[];
-  onAddShayari: (shayari: Shayari) => void;
+  onAddShayari: (sh: Shayari) => void;
   onDeleteShayari: (id: string) => void;
   onApproveShayari: (id: string) => void;
   onDeclineShayari: (id: string) => void;
-  onAddCategory: (category: string) => void;
+  onAddCategory: (name: string) => void;
   onClose: () => void;
 }
+
+// Simulated feedback inbox message item type
+interface SupportMessage {
+  id: string;
+  name: string;
+  email: string;
+  subject: string;
+  message: string;
+  timestamp: string;
+  category: 'feedback' | 'bug' | 'copyright' | 'other';
+}
+
+const DEFAULT_MESSAGES: SupportMessage[] = [
+  {
+    id: 'msg-1',
+    name: 'Ronit Mehra',
+    email: 'ronit.mehra@gmail.com',
+    subject: 'Love categories are amazing!',
+    message: 'I have shared over 15 shayaris from the Love category to my WhatsApp status. The voice synthesizer reads them perfectly in soft beats. Thank you Roy!',
+    timestamp: '2026-05-28T10:15:00.000Z',
+    category: 'feedback'
+  },
+  {
+    id: 'msg-2',
+    name: 'Suhani Patel',
+    email: 'suhani.p@gmail.com',
+    subject: 'Sitemap 404 resolved',
+    message: 'Awesome performance upgrade. The sitemap is loading instantly under /sitemap.xml now. Thank you for fixing Google Search Console error so fast.',
+    timestamp: '2026-05-27T18:40:00.000Z',
+    category: 'other'
+  },
+  {
+    id: 'msg-3',
+    name: 'Aman Verma',
+    email: 'aman.verma@gmail.com',
+    subject: 'Request for custom fonts in card downloads',
+    message: 'It would be super awesome if we could choose Space Grotesk font on the background wallpaper card download module in the create section.',
+    timestamp: '2026-05-27T11:22:00.000Z',
+    category: 'feedback'
+  }
+];
 
 export default function AdminPanel({
   categories,
@@ -26,993 +74,1031 @@ export default function AdminPanel({
   onApproveShayari,
   onDeclineShayari,
   onAddCategory,
-  onClose,
+  onClose
 }: AdminPanelProps) {
-  // Login State
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [username, setUsername] = useState('');
-  const [pin, setPin] = useState('');
-  const [loginError, setLoginError] = useState('');
+  // Navigation active tab
+  const [activeTab, setActiveTab] = useState<'analytics' | 'manage_shayari' | 'users' | 'block_unblock' | 'ads' | 'settings' | 'seo' | 'messages' | 'mood'>('analytics');
+  
+  // Side Drawer / Sidebar Toggle
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  
+  // Local admin states
+  const [userList, setUserList] = useState<User[]>([]);
+  const [activityLogs, setActivityLogs] = useState<any[]>([]);
+  const [supportMessages, setSupportMessages] = useState<SupportMessage[]>(DEFAULT_MESSAGES);
+  
+  // Shayari search & filters
+  const [approvedSearch, setApprovedSearch] = useState('');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('All');
+  
+  // Manual adding Form states
+  const [newShayariText, setNewShayariText] = useState('');
+  const [newShayariAuthor, setNewShayariAuthor] = useState('');
+  const [newShayariCategory, setNewShayariCategory] = useState(categories[0] || 'Motivation');
+  const [newShayariHighlight, setNewShayariHighlight] = useState('');
 
-  // Tab State: 'pending' | 'list' | 'add' | 'categories' | 'users' | 'ads'
-  const [activeTab, setActiveTab] = useState<'pending' | 'list' | 'add' | 'categories' | 'users' | 'ads'>('pending');
+  // Category managing form states
+  const [addCatName, setAddCatName] = useState('');
 
-  // Ad Management State
-  const [adsConfig, setAdsConfig] = useState<AdsConfig>(() => getStoredAdsConfig());
-  const [testPlacement, setTestPlacement] = useState<keyof AdsConfig['placements']>('homeTopBanner');
+  // Loaded upon render
+  useEffect(() => {
+    refreshData();
+  }, [approvedShayaris, pendingShayaris]);
 
-  // Interactive local states for user management DB
-  const [users, setUsers] = useState<User[]>(() => getUsers());
-  const [activityUser, setActivityUser] = useState<string | null>(null);
-
-  // New Shayari Form State
-  const [newText, setNewText] = useState('');
-  const [newCategory, setNewCategory] = useState(categories[1] || 'Motivation');
-  const [newAuthor, setNewAuthor] = useState('Roy No Rules');
-  const [customHighlights, setCustomHighlights] = useState('');
-  const [autoHighlight, setAutoHighlight] = useState(true);
-  const [addShayariSuccess, setAddShayariSuccess] = useState(false);
-
-  // New Category State
-  const [categoryName, setCategoryName] = useState('');
-
-  // Refresh Users directory list
-  const refreshUsersList = () => {
-    setUsers(getUsers());
+  const refreshData = () => {
+    setUserList(getUsers());
+    setActivityLogs(getActivityLogs());
   };
 
-  // Handle keypad click
-  const handleKeypadPress = (val: string) => {
-    setLoginError('');
-    if (val === 'C') {
-      setPin('');
-    } else if (val === 'backspace') {
-      setPin((prev) => prev.slice(0, -1));
-    } else {
-      if (pin.length < 10) {
-        setPin((prev) => prev + val);
+  // Block/unblock triggers
+  const handleToggleBlock = (userId: string, currentlyBlocked: boolean) => {
+    const success = setBlockUserStatus(userId, !currentlyBlocked);
+    if (success) {
+      refreshData();
+    }
+  };
+
+  // Delete user from db
+  const handleDeleteUser = (userId: string) => {
+    if (confirm('Permanently delete this user from database? This is irreversible.')) {
+      const success = deleteUserFromDb(userId);
+      if (success) {
+        refreshData();
       }
     }
   };
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  // Handle manual publishing of a Shayari
+  const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Validate credentials
-    // Username: Roynorules, passcode PIN: 9027671630 (10 digits)
-    if (username.toLowerCase() !== 'roynorules') {
-      setLoginError('Invalid Admin Username!');
-      return;
-    }
-    if (pin === '9027671630') {
-      setIsLoggedIn(true);
-      setPin('');
-      refreshUsersList(); // Sync with DB
-    } else {
-      setLoginError('Incorrect Passcode PIN!');
-      setPin(''); // Reset on failure
-    }
-  };
+    if (!newShayariText.trim()) return;
+    
+    const highlightWords = newShayariHighlight
+      ? newShayariHighlight.split(',').map(w => w.trim()).filter(Boolean)
+      : [];
 
-  const handleAddNewShayari = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newText.trim()) return;
-
-    let highlights: string[] = [];
-    if (autoHighlight) {
-      // Find longest words & some emotional words
-      const words = newText.split(/[\s,.'"\n]+/);
-      const emoKeywords = ['rules', 'roy', 'zindagi', 'attitude', 'kismat', 'mushkil', 'shor', 'manzil', 'dil', 'dosti', 'waqt', 'love', 'yaar'];
-      
-      const found = words.filter(
-        (w) => emoKeywords.includes(w.toLowerCase()) || w.length > 5
-      );
-      highlights = (Array.from(new Set(found)) as string[]).slice(0, 4);
-    } else if (customHighlights.trim()) {
-      highlights = customHighlights
-        .split(',')
-        .map((h) => h.trim())
-        .filter(Boolean);
-    }
-
-    const compiled: Shayari = {
-      id: Date.now().toString(),
-      text: newText.trim(),
-      category: newCategory,
-      author: newAuthor.trim() || 'Roy No Rules',
-      highlightedWords: highlights,
-      likes: Math.floor(Math.random() * 200) + 50,
-      shares: Math.floor(Math.random() * 80) + 12,
+    const item: Shayari = {
+      id: 'approved-' + Date.now(),
+      text: newShayariText.trim(),
+      category: newShayariCategory,
+      author: newShayariAuthor.trim() || 'Roy No Rules',
+      highlightedWords: highlightWords,
+      likes: Math.floor(Math.random() * 8) + 1,
+      shares: Math.floor(Math.random() * 4),
       createdAt: new Date().toISOString(),
-      status: 'approved',
+      status: 'approved'
     };
 
-    onAddShayari(compiled);
-    setNewText('');
-    setCustomHighlights('');
-    setAddShayariSuccess(true);
-    setTimeout(() => setAddShayariSuccess(false), 3000);
+    onAddShayari(item);
+    setNewShayariText('');
+    setNewShayariHighlight('');
+    setNewShayariAuthor('');
+    setActiveTab('manage_shayari');
+    alert('Shayari instantly published to live website feed!');
   };
 
-  const handleAddCategorySubmit = (e: React.FormEvent) => {
+  // Handle adding custom category list
+  const handleCatSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!categoryName.trim()) return;
-    onAddCategory(categoryName.trim());
-    setCategoryName('');
+    if (!addCatName.trim()) return;
+    onAddCategory(addCatName.trim());
+    setAddCatName('');
   };
 
   return (
-    <div 
-      className="fixed inset-0 bg-[#000000]/95 backdrop-blur-xl z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto font-sans"
-      style={{ WebkitOverflowScrolling: 'touch' }}
-    >
-      <div className="w-full max-w-4xl bg-zinc-950 border border-zinc-900/80 rounded-[24px] overflow-hidden shadow-[0_0_50px_rgba(239,68,68,0.18)] flex flex-col my-auto max-h-[90vh] sm:max-h-[88vh]">
-        {/* Admin Header */}
-        <div className="flex items-center justify-between p-4.5 sm:p-5 border-b border-zinc-900 bg-gradient-to-r from-red-950/20 via-zinc-950 to-zinc-950 shrink-0 select-none">
-          <div className="flex items-center gap-2">
-            <ShieldAlert size={18} className="text-red-500 animate-pulse" />
-            <span className="text-xs sm:text-sm font-bold tracking-widest text-white font-mono uppercase">
-              Roy No Rules... Admin HQ
-            </span>
-          </div>
-          <button
-            onClick={onClose}
-            className="flex text-zinc-400 hover:text-white transition p-2 rounded-xl bg-zinc-900 border border-zinc-800 cursor-pointer shadow-[0_2px_10px_rgba(0,0,0,0.5)] active:scale-95"
-            aria-label="Close modal"
+    <div className="fixed inset-0 bg-zinc-950 z-50 flex flex-col md:flex-row text-zinc-100 overflow-hidden font-sans" id="admin-hq-panel">
+      
+      {/* --- SIDEBAR / DRAWER COMPONENT --- */}
+      <AnimatePresence mode="wait">
+        {isSidebarOpen && (
+          <motion.aside
+            initial={{ x: -260, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: -260, opacity: 0 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            className={`fixed md:relative top-0 bottom-0 left-0 w-[260px] bg-zinc-950 border-r border-zinc-900/80 p-5 flex flex-col justify-between shrink-0 z-50 h-full select-none`}
           >
-            <X size={15} />
-          </button>
-        </div>
-
-        {/* LOGIN SCREEN IF NOT LOGGED IN */}
-        <AnimatePresence mode="wait">
-          {!isLoggedIn ? (
-            <motion.div
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              className="p-6 md:p-8 flex flex-col md:flex-row gap-8 items-center justify-center overflow-y-auto"
-            >
-              {/* Login info */}
-              <div className="md:w-1/2 space-y-4">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center shadow-[0_0_20px_rgba(239,68,68,0.4)]">
-                  <Lock className="text-white" size={24} />
+            <div>
+              {/* Logo / Header Branding Section */}
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded bg-red-650 flex items-center justify-center font-black text-xs text-white">
+                    R
+                  </div>
+                  <div>
+                    <h2 className="text-xs font-black tracking-[0.15em] uppercase text-white leading-none">
+                      Roy's Command
+                    </h2>
+                    <span className="text-[8px] font-mono tracking-widest text-red-500 uppercase mt-1 block">
+                      HQ CONTROL DECK
+                    </span>
+                  </div>
                 </div>
-                <h3 className="text-2xl font-bold text-white tracking-tight">
-                  Enter Admin Passcode
-                </h3>
-                <p className="text-sm text-zinc-400 leading-relaxed">
-                  Authorized access only. Use the numeric keypad to unlock Roy No Rules' content controls, community accounts, and system databases.
-                </p>
-
-                <div className="p-4 bg-zinc-900/40 rounded-2xl border border-zinc-800/80 space-y-2">
-                  <h4 className="text-xs font-mono text-zinc-500 uppercase tracking-widest">
-                    Security Policy
-                  </h4>
-                  <p className="text-xs text-zinc-400 leading-relaxed">
-                    This control dashboard requires a valid username and the official 10-digit passcode. All access attempts are securely recorded in the community activity logs.
-                  </p>
-                </div>
+                <button
+                  onClick={() => setIsSidebarOpen(false)}
+                  className="p-1 px-1.5 rounded-lg bg-zinc-900 text-zinc-500 hover:text-white transition cursor-pointer md:hidden"
+                >
+                  <X size={14} />
+                </button>
               </div>
 
-              {/* Login Interface Form */}
-              <form onSubmit={handleLoginSubmit} className="md:w-1/2 w-full max-w-sm space-y-5">
-                {loginError && (
-                  <div className="p-3 bg-red-950/20 border border-red-500/30 text-red-400 text-xs rounded-xl font-medium">
-                    ⚠️ {loginError}
+              {/* Drawer Links Navigation Container */}
+              <nav className="space-y-1 overflow-y-auto max-h-[70vh] no-scrollbar">
+                
+                {/* 1. Analytics */}
+                <button
+                  onClick={() => setActiveTab('analytics')}
+                  className={`flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-semibold w-full text-left transition-all ${
+                    activeTab === 'analytics'
+                      ? 'bg-red-950/20 border border-red-500/35 text-red-500 shadow-[0_4px_12px_rgba(239,68,68,0.06)]'
+                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40'
+                  }`}
+                >
+                  <BarChart3 size={15} />
+                  <span>📊 Analytics Dashboard</span>
+                </button>
+
+                {/* 2. Manage Shayari */}
+                <button
+                  onClick={() => setActiveTab('manage_shayari')}
+                  className={`flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-semibold w-full text-left transition-all ${
+                    activeTab === 'manage_shayari'
+                      ? 'bg-red-950/20 border border-red-500/35 text-red-500 shadow-[0_4px_12px_rgba(239,68,68,0.06)]'
+                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40'
+                  }`}
+                >
+                  <BookOpen size={15} />
+                  <div className="flex-1 flex items-center justify-between">
+                    <span>📝 Manage Shayari</span>
+                    {pendingShayaris.length > 0 && (
+                      <span className="bg-red-600 text-white text-[8.5px] px-2 py-0.5 rounded-full animate-pulse font-extrabold">
+                        {pendingShayaris.length} REV
+                      </span>
+                    )}
                   </div>
-                )}
-
-                {/* Username */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest">
-                    Username
-                  </label>
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Enter Admin Username"
-                    className="w-full bg-zinc-900 border border-zinc-800 text-white rounded-xl px-4 py-2.5 text-xs outline-none focus:border-red-500"
-                  />
-                </div>
-
-                {/* Pin visual visual feedback */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-mono text-zinc-400 uppercase tracking-widest block text-center">
-                    Enter Keypad PIN Code (10 Digits)
-                  </label>
-                  <div className="flex justify-center gap-2 py-2">
-                    {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((idx) => (
-                      <div
-                        key={idx}
-                        className={`w-3 h-3 rounded-full border transition-all duration-350 ${
-                          pin.length > idx
-                            ? 'bg-red-500 border-red-500 shadow-[0_0_12px_rgba(239,68,68,0.9)] scale-110'
-                            : 'border-zinc-800 bg-zinc-950'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                {/* Numeric Keypad only UI */}
-                <div className="grid grid-cols-3 gap-2 bg-zinc-900/40 p-3 rounded-2xl border border-zinc-850">
-                  {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', 'backspace'].map((key) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => handleKeypadPress(key)}
-                      className={`h-11 rounded-xl text-sm font-semibold flex items-center justify-center transition active:scale-95 cursor-pointer ${
-                        key === 'C'
-                          ? 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-red-500'
-                          : key === 'backspace'
-                          ? 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white'
-                          : 'bg-zinc-950 hover:bg-zinc-900 border border-zinc-900 text-white hover:border-zinc-800'
-                      }`}
-                    >
-                      {key === 'backspace' ? '⌫' : key}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Submit button */}
-                <button
-                  type="submit"
-                  disabled={!username || pin.length !== 10}
-                  className="w-full bg-gradient-to-r from-red-600 to-rose-700 hover:opacity-90 active:scale-95 text-white font-bold py-3 px-4 rounded-xl text-xs tracking-widest uppercase transition-all duration-300 cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
-                >
-                  Confirm Login
-                </button>
-              </form>
-            </motion.div>
-          ) : (
-            /* ADMIN INSIDE DASHBOARD CONTENT */
-            <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-y-auto">
-              {/* Sidebar Navigation inside Panel */}
-              <div className="md:w-64 border-r border-zinc-900 bg-zinc-950 md:p-4 flex flex-row md:flex-col gap-1 overflow-x-auto md:overflow-x-visible shrink-0 select-none">
-                {/* Pending Submissions */}
-                <button
-                  onClick={() => setActiveTab('pending')}
-                  className={`flex items-center gap-3 px-4 py-3 text-xs font-semibold rounded-xl text-left transition w-full whitespace-nowrap cursor-pointer ${
-                    activeTab === 'pending'
-                      ? 'bg-red-950/20 border border-red-500/30 text-red-500'
-                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
-                  }`}
-                >
-                  <Users size={14} />
-                  <span>Pending Shayaris ({pendingShayaris.length})</span>
-                  {pendingShayaris.length > 0 && (
-                    <span className="ml-auto bg-red-600 text-white text-[10px] px-2 py-0.5 rounded-full animate-pulse">
-                      {pendingShayaris.length}
-                    </span>
-                  )}
                 </button>
 
-                {/* Add Shayari */}
-                <button
-                  onClick={() => setActiveTab('add')}
-                  className={`flex items-center gap-3 px-4 py-3 text-xs font-semibold rounded-xl text-left transition w-full whitespace-nowrap cursor-pointer ${
-                    activeTab === 'add'
-                      ? 'bg-red-950/20 border border-red-500/30 text-red-500'
-                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
-                  }`}
-                >
-                  <Plus size={14} />
-                  <span>Publish New Shayari</span>
-                </button>
-
-                {/* All Approved List */}
-                <button
-                  onClick={() => setActiveTab('list')}
-                  className={`flex items-center gap-3 px-4 py-3 text-xs font-semibold rounded-xl text-left transition w-full whitespace-nowrap cursor-pointer ${
-                    activeTab === 'list'
-                      ? 'bg-red-950/20 border border-red-500/30 text-red-500'
-                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
-                  }`}
-                >
-                  <Award size={14} />
-                  <span>Live Database ({approvedShayaris.length})</span>
-                </button>
-
-                {/* User Accounts Management Tab (NEW) */}
+                {/* 3. Users list */}
                 <button
                   onClick={() => {
                     setActiveTab('users');
-                    refreshUsersList();
+                    refreshData();
                   }}
-                  className={`flex items-center gap-3 px-4 py-3 text-xs font-semibold rounded-xl text-left transition w-full whitespace-nowrap cursor-pointer ${
+                  className={`flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-semibold w-full text-left transition-all ${
                     activeTab === 'users'
-                      ? 'bg-red-950/20 border border-red-500/30 text-red-500'
-                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
+                      ? 'bg-red-950/20 border border-red-500/35 text-red-500 shadow-[0_4px_12px_rgba(239,68,68,0.06)]'
+                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40'
                   }`}
                 >
-                  <Users size={14} />
-                  <span>User Management ({users.length})</span>
+                  <Users size={15} />
+                  <span>👤 Users Directory</span>
                 </button>
 
-                {/* Categories Manager */}
+                {/* 4. Block/Unblock Moderation */}
                 <button
-                  onClick={() => setActiveTab('categories')}
-                  className={`flex items-center gap-3 px-4 py-3 text-xs font-semibold rounded-xl text-left transition w-full whitespace-nowrap cursor-pointer ${
-                    activeTab === 'categories'
-                      ? 'bg-red-950/20 border border-red-500/30 text-red-500'
-                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
+                  onClick={() => {
+                    setActiveTab('block_unblock');
+                    refreshData();
+                  }}
+                  className={`flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-semibold w-full text-left transition-all ${
+                    activeTab === 'block_unblock'
+                      ? 'bg-red-950/20 border border-red-500/35 text-red-500 shadow-[0_4px_12px_rgba(239,68,68,0.06)]'
+                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40'
                   }`}
                 >
-                  <ChevronRight size={14} />
-                  <span>Manage Categories ({categories.length})</span>
+                  <ShieldAlert size={15} />
+                  <span>🚫 Block / Moderation</span>
                 </button>
 
-                {/* Ads Manager */}
+                {/* 5. Ads manager */}
                 <button
                   onClick={() => setActiveTab('ads')}
-                  className={`flex items-center gap-3 px-4 py-3 text-xs font-semibold rounded-xl text-left transition w-full whitespace-nowrap cursor-pointer ${
+                  className={`flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-semibold w-full text-left transition-all ${
                     activeTab === 'ads'
-                      ? 'bg-red-950/20 border border-red-500/30 text-red-500'
-                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60'
+                      ? 'bg-red-950/20 border border-red-500/35 text-red-500 shadow-[0_4px_12px_rgba(239,68,68,0.06)]'
+                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40'
                   }`}
                 >
-                  <Megaphone size={14} />
-                  <span>Ad Management</span>
+                  <Megaphone size={15} />
+                  <span>📢 Adsterra Smart Ads</span>
+                </button>
+
+                {/* 6. Settings config */}
+                <button
+                  onClick={() => setActiveTab('settings')}
+                  className={`flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-semibold w-full text-left transition-all ${
+                    activeTab === 'settings'
+                      ? 'bg-red-950/20 border border-red-500/35 text-red-500 shadow-[0_4px_12px_rgba(239,68,68,0.06)]'
+                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40'
+                  }`}
+                >
+                  <Settings size={15} />
+                  <span>⚙ settings Pane</span>
+                </button>
+
+                {/* 7. SEO metrics */}
+                <button
+                  onClick={() => setActiveTab('seo')}
+                  className={`flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-semibold w-full text-left transition-all ${
+                    activeTab === 'seo'
+                      ? 'bg-red-950/20 border border-red-500/35 text-red-500 shadow-[0_4px_12px_rgba(239,68,68,0.06)]'
+                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40'
+                  }`}
+                >
+                  <Globe size={15} />
+                  <span>📈 SEO / Sitemaps</span>
+                </button>
+
+                {/* 8. Messages mail */}
+                <button
+                  onClick={() => setActiveTab('messages')}
+                  className={`flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-semibold w-full text-left transition-all ${
+                    activeTab === 'messages'
+                      ? 'bg-red-950/20 border border-red-500/35 text-red-500 shadow-[0_4px_12px_rgba(239,68,68,0.06)]'
+                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40'
+                  }`}
+                >
+                  <Mail size={15} />
+                  <div className="flex-grow flex items-center justify-between">
+                    <span>📩 Feedback Message Box</span>
+                    <span className="text-[10px] font-mono text-zinc-500">
+                      {supportMessages.length}
+                    </span>
+                  </div>
+                </button>
+
+                {/* 9. Mood atmospheres and categories */}
+                <button
+                  onClick={() => setActiveTab('mood')}
+                  className={`flex items-center gap-3 px-3.5 py-3 rounded-xl text-xs font-semibold w-full text-left transition-all ${
+                    activeTab === 'mood'
+                      ? 'bg-red-950/20 border border-red-500/35 text-red-500 shadow-[0_4px_12px_rgba(239,68,68,0.06)]'
+                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40'
+                  }`}
+                >
+                  <Layers size={15} />
+                  <span>🎭 Mood System Config</span>
+                </button>
+
+              </nav>
+            </div>
+
+            <div className="pt-4 border-t border-zinc-900/50">
+              <span className="text-[9px] font-mono text-zinc-600 block">
+                ADMIN SESSION IN PROGRESS
+              </span>
+              <button 
+                onClick={onClose}
+                className="mt-3 px-3 py-2 bg-zinc-900 hover:bg-red-950/20 hover:text-red-450 text-zinc-400 rounded-xl font-mono text-[10px] uppercase font-bold tracking-widest block text-center w-full select-none cursor-pointer border border-zinc-850 active:scale-95 transition"
+              >
+                Log Out System
+              </button>
+            </div>
+          </motion.aside>
+        )}
+      </AnimatePresence>
+
+      {/* --- MAIN HQ WORKSPACE WRAPPER --- */}
+      <main className="flex-1 flex flex-col min-w-0 h-full relative z-10 bg-zinc-950/60 overflow-hidden">
+        
+        {/* Workspace Floating Navigation Header (Mobile Toggle etc) */}
+        <header className="px-6 py-4.5 border-b border-zinc-900/80 bg-zinc-950/50 backdrop-blur flex items-center justify-between shrink-0 select-none">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-850 text-zinc-400 hover:text-white transition active:scale-95 cursor-pointer"
+              title="Toggle Sidebar Drawer"
+            >
+              <Menu size={16} />
+            </button>
+            <div className="text-left">
+              <h1 className="text-xs font-mono text-zinc-500 uppercase tracking-widest">
+                Workspace Panel
+              </h1>
+              <h2 className="text-sm font-black text-white uppercase tracking-wider mt-0.5">
+                {activeTab === 'analytics' && '📊 Deep Analytics Console'}
+                {activeTab === 'manage_shayari' && '📝 Poetry Registry Controller'}
+                {activeTab === 'users' && '👤 High Resident Directories'}
+                {activeTab === 'block_unblock' && '🚫 Community Defensive Moderation'}
+                {activeTab === 'ads' && '📢 Intelligent Ads Distributor'}
+                {activeTab === 'settings' && '⚙ Port Configurations & purgers'}
+                {activeTab === 'seo' && '📈 SEO & Canonical indexing'}
+                {activeTab === 'messages' && '📩 Resident Direct Support Mailbox'}
+                {activeTab === 'mood' && '🎭 Atmospheres Mood System Matrix'}
+              </h2>
+            </div>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="p-2 px-3 rounded-xl bg-zinc-900 border border-zinc-850 text-zinc-400 hover:text-white transition duration-200 text-xs font-bold leading-none cursor-pointer flex items-center gap-1 hover:border-zinc-750"
+          >
+            <span>Exit Console</span>
+            <X size={13} />
+          </button>
+        </header>
+
+        {/* Scrollable Main Workspace Content Canvas */}
+        <div className="flex-1 p-6 md:p-8 overflow-y-auto no-scrollbar relative">
+          
+          {/* Grid Background accents */}
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(255,255,255,0.005)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.005)_1px,transparent_1px)] bg-[size:14px_14px] pointer-events-none" />
+
+          {/* 1. ANALYTICS CONSOLE SCREEN */}
+          {activeTab === 'analytics' && (
+            <div className="space-y-6 animate-fade-in text-left">
+              {/* Telemetry Cards Grid */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                
+                <div className="bg-zinc-900/20 border border-zinc-900 p-4.5 rounded-2xl relative overflow-hidden">
+                  <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest block">Live Database Cards</span>
+                  <span className="text-3xl font-black text-white mt-1.5 block">{approvedShayaris.length}</span>
+                  <div className="text-[9px] font-mono text-green-500 uppercase mt-2 select-none flex items-center gap-1">
+                    <span>● 100% ONLINE</span>
+                    <span className="text-zinc-600">• SHARED WORLDWIDE</span>
+                  </div>
+                </div>
+
+                <div className="bg-zinc-900/20 border border-zinc-900 p-4.5 rounded-2xl relative overflow-hidden">
+                  <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest block">Pending Reviews</span>
+                  <span className={`text-3xl font-black mt-1.5 block ${pendingShayaris.length > 0 ? 'text-amber-500' : 'text-zinc-500'}`}>
+                    {pendingShayaris.length}
+                  </span>
+                  <div className="text-[9px] font-mono text-zinc-500 uppercase mt-2 flex items-center gap-1.5">
+                    <span className={pendingShayaris.length > 0 ? 'animate-pulse text-amber-500 font-bold' : ''}>
+                      {pendingShayaris.length > 0 ? '⚠️ ACTION REQUIRED' : '✓ ALL REVIEWS COMPLETED'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="bg-zinc-900/20 border border-zinc-900 p-4.5 rounded-2xl relative overflow-hidden">
+                  <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest block">Registered Profiles</span>
+                  <span className="text-3xl font-black text-white mt-1.5 block">{userList.length}</span>
+                  <div className="text-[9px] font-mono text-zinc-500 mt-2">
+                    Active communities & followers
+                  </div>
+                </div>
+
+                <div className="bg-zinc-900/20 border border-zinc-900 p-4.5 rounded-2xl relative overflow-hidden">
+                  <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest block">Engagement Index</span>
+                  <span className="text-3xl font-black text-white mt-1.5 block">9.86%</span>
+                  <div className="text-[9px] font-mono text-rose-500 mt-2 font-bold select-none">
+                    📈 Growth: +14.2% THIS WEEK
+                  </div>
+                </div>
+
+              </div>
+
+              {/* High Tech Animated Graph Simulator */}
+              <div className="bg-zinc-900/10 border border-zinc-900 p-5 rounded-2xl">
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <span className="text-[10px] font-mono text-red-500 uppercase tracking-widest">TRAFFIC MATRIX DENSITY</span>
+                    <h3 className="text-sm font-black text-white uppercase mt-0.5">Real-time Impression & Request Log</h3>
+                  </div>
+                  <div className="flex gap-2 text-[9px] font-mono">
+                    <span className="px-2 py-0.5 rounded bg-zinc-900 border border-zinc-850 text-zinc-400">INDEX: CLOUDFLARE</span>
+                    <span className="px-2 py-0.5 rounded bg-zinc-900 border border-zinc-850 text-emerald-400 font-bold">STABLE</span>
+                  </div>
+                </div>
+
+                {/* Simulated Graph Lines */}
+                <div className="h-44 w-full bg-zinc-950/60 rounded-xl border border-zinc-900 p-3 flex items-end gap-1.5 relative overflow-hidden">
+                  <div className="absolute top-2 right-2 text-[9px] font-mono text-zinc-650">MAX FLOW: 480 req/s</div>
+                  
+                  {/* Grid Lines Overlay */}
+                  <div className="absolute inset-0 flex flex-col justify-between pointer-events-none p-4 py-8">
+                    <div className="border-b border-zinc-900/20 w-full" />
+                    <div className="border-b border-zinc-900/20 w-full" />
+                    <div className="border-b border-zinc-900/20 w-full" />
+                  </div>
+
+                  {/* Columns */}
+                  {[32, 45, 12, 54, 76, 34, 45, 90, 85, 42, 31, 22, 65, 87, 89, 45, 67, 95, 120, 110, 85, 96, 74].map((h, i) => (
+                    <div key={i} className="flex-1 flex flex-col justify-end h-full">
+                      <div 
+                        style={{ height: `${h}%` }} 
+                        className={`w-full rounded-t-sm transition-all duration-1000 bg-gradient-to-t from-red-950 to-red-500 border-t border-red-400/40 hover:from-white hover:to-white`}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex justify-between text-[9px] font-mono text-zinc-550 mt-2.5">
+                  <span>02:00 IST</span>
+                  <span>06:00 IST</span>
+                  <span>10:00 IST</span>
+                  <span>14:00 IST</span>
+                  <span>18:00 IST</span>
+                  <span>22:00 IST</span>
+                </div>
+              </div>
+
+              {/* Live activity feed */}
+              <div className="bg-zinc-900/10 border border-zinc-900 p-5 rounded-2xl">
+                <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest block mb-4">CRITICAL USER INTERACTION LOGGER (LOGS)</span>
+                <div className="space-y-2 max-h-56 overflow-y-auto no-scrollbar pr-2">
+                  {activityLogs.slice(0, 12).map((lg: any) => (
+                    <div key={lg.id} className="p-2.5 bg-zinc-950/60 border border-zinc-900/60 rounded-xl text-left font-mono text-[10.5px] text-zinc-400 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-red-500 font-bold">@{lg.username}</span>
+                        <span className="text-zinc-300">— {lg.action}</span>
+                        <span className="text-zinc-500 font-sans">({lg.details})</span>
+                      </div>
+                      <span className="text-zinc-600 text-[9.5px] sm:text-right shrink-0">
+                        {new Date(lg.timestamp).toLocaleTimeString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="text-[9px] font-mono text-zinc-600 mt-3 uppercase text-right leading-none">
+                  SECURE STORAGE ENCRYPTED TRACEBACKS ACTIVE • TRUNCATED TO SYSTEM MEMORY
+                </p>
+              </div>
+
+            </div>
+          )}
+
+          {/* 2. MANAGE SHAYARI VIEW */}
+          {activeTab === 'manage_shayari' && (
+            <div className="space-y-6 animate-fade-in text-left">
+              {/* Tabs within Manage Shayari: Review / Live Directory / Publish */}
+              <div className="flex border-b border-zinc-900 gap-1 overflow-x-auto pb-1 no-scrollbar select-none">
+                <button
+                  type="button"
+                  id="tab-awaiting"
+                  onClick={() => {
+                    const elReview = document.getElementById('review-section-target');
+                    if (elReview) {
+                      elReview.scrollIntoView({ behavior: 'smooth' });
+                    }
+                  }}
+                  className="px-4 py-2 bg-zinc-900/40 text-xs font-bold whitespace-nowrap border border-zinc-850 hover:border-zinc-700 text-zinc-300 rounded-xl"
+                >
+                  🚀 Review Submissions ({pendingShayaris.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const elDir = document.getElementById('live-feed-directory');
+                    if (elDir) {
+                      elDir.scrollIntoView({ behavior: 'smooth' });
+                    }
+                  }}
+                  className="px-4 py-2 bg-zinc-900/40 text-xs font-bold whitespace-nowrap border border-zinc-850 hover:border-zinc-700 text-zinc-300 rounded-xl"
+                >
+                  📚 Live Directory ({approvedShayaris.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const elAddForm = document.getElementById('add-manual-form');
+                    if (elAddForm) {
+                      elAddForm.scrollIntoView({ behavior: 'smooth' });
+                    }
+                  }}
+                  className="px-4 py-2 bg-zinc-900/40 text-xs font-bold whitespace-nowrap border border-zinc-850 hover:border-zinc-700 text-zinc-300 rounded-xl"
+                >
+                  ➕ Direct Publish Card
                 </button>
               </div>
 
-              {/* Main Workspace Frame */}
-              <div className="flex-1 p-6 md:p-8 overflow-y-auto bg-zinc-950/40">
-                {/* TAB 1: PENDING SUBMISSIONS REVIEW */}
-                {activeTab === 'pending' && (
-                  <div className="space-y-5">
-                    <div className="flex justify-between items-center">
-                      <h4 className="text-lg font-bold text-white tracking-tight">
-                        Review User Submissions
-                      </h4>
-                      <span className="text-xs font-mono text-zinc-500">
-                        {pendingShayaris.length} submissions awaiting review
-                      </span>
-                    </div>
+              {/* Section 1: Review user submissions */}
+              <div id="review-section-target" className="scroll-mt-10 bg-zinc-900/10 border border-zinc-900 p-5 rounded-2xl space-y-4">
+                <div className="flex justify-between items-center select-none">
+                  <div>
+                    <h3 className="text-sm font-black text-white uppercase">Awaiting Editorial Validation</h3>
+                    <p className="text-[10px] text-zinc-550 font-mono mt-0.5">Reviews requested by global visitors via Submit option</p>
+                  </div>
+                  <span className="bg-zinc-950 text-zinc-400 text-[10px] font-mono px-2.5 py-1 rounded border border-zinc-900">
+                    AWAITING: {pendingShayaris.length} CARD(S)
+                  </span>
+                </div>
 
-                    {pendingShayaris.length === 0 ? (
-                      <div className="text-center py-12 border border-dashed border-zinc-900 rounded-2xl bg-zinc-950/20">
-                        <Users className="text-zinc-700 mx-auto mb-3" size={32} />
-                        <h5 className="text-sm font-semibold text-zinc-400">All caught up!</h5>
-                        <p className="text-xs text-zinc-650 mt-1">No user submitted shayaris are currently pending approval.</p>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 gap-4">
-                        {pendingShayaris.map((sh) => (
-                          <div
-                            key={sh.id}
-                            className="p-5 border border-zinc-900 rounded-2xl bg-zinc-900/40 hover:border-red-500/10 transition-colors space-y-4"
-                          >
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="font-mono bg-red-950/30 border border-red-950 text-red-400 px-3 py-0.5 rounded-full">
-                                {sh.category}
-                              </span>
-                              <span className="text-zinc-500 font-mono">By — {sh.author}</span>
-                            </div>
-
-                            <p className="text-sm text-zinc-200 leading-relaxed italic block whitespace-pre-line text-center font-sans">
-                              {sh.text}
-                            </p>
-
-                            <div className="text-[10px] text-zinc-500 font-mono flex gap-1.5 flex-wrap">
-                              <span>Auto-Keywords Highlighted:</span>
-                              {sh.highlightedWords.map((hw) => (
-                                <span key={hw} className="text-red-400 font-medium">
-                                  #{hw}
-                                </span>
-                              ))}
-                            </div>
-
-                            <div className="flex border-t border-zinc-850 pt-4 justify-end gap-3.5">
-                              <button
-                                onClick={() => onDeclineShayari(sh.id)}
-                                className="px-4 py-2 border border-zinc-850 text-zinc-400 hover:text-white hover:bg-zinc-950 rounded-xl text-xs transition-colors font-medium flex items-center gap-1 cursor-pointer"
-                              >
-                                <Trash2 size={13} />
-                                <span>Decline</span>
-                              </button>
-                              <button
-                                onClick={() => onApproveShayari(sh.id)}
-                                className="px-5 py-2 bg-gradient-to-r from-red-600 to-rose-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition hover:shadow-[0_0_12px_rgba(239,68,68,0.2)] cursor-pointer"
-                              >
-                                <Check size={13} />
-                                <span>Approve & Publish</span>
-                              </button>
-                            </div>
+                {pendingShayaris.length === 0 ? (
+                  <div className="text-center py-10 border border-dashed border-zinc-900 rounded-xl">
+                    <span className="text-xl">🕊️</span>
+                    <h5 className="text-xs font-mono text-zinc-500 uppercase mt-2">No pending reviews</h5>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {pendingShayaris.map((sh: Shayari) => (
+                      <div key={sh.id} className="p-4 bg-zinc-950 border border-zinc-900/80 rounded-2xl flex flex-col justify-between">
+                        <div>
+                          <div className="flex justify-between items-center text-[9.5px] font-mono mb-2">
+                            <span className="text-red-500 uppercase font-black bg-red-950/10 px-2.5 py-1 border border-red-950/30 rounded">
+                              {sh.category}
+                            </span>
+                            <span className="text-zinc-500 truncate max-w-[140px]">Author: {sh.author}</span>
                           </div>
-                        ))}
+                          
+                          <p className="text-xs text-zinc-300 leading-relaxed font-sans whitespace-pre-line select-text">
+                            "{sh.text}"
+                          </p>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-3 mt-4 border-t border-zinc-900/50">
+                          <button
+                            onClick={() => onDeclineShayari(sh.id)}
+                            className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-red-400 rounded-lg text-[10px] font-mono uppercase font-bold transition border border-zinc-850 select-none cursor-pointer"
+                          >
+                            Decline ✖
+                          </button>
+                          <button
+                            onClick={() => onApproveShayari(sh.id)}
+                            className="px-3.5 py-1.5 bg-red-950/40 hover:bg-red-900/30 border border-red-500/30 text-red-400 hover:text-red-300 rounded-lg text-[10px] font-mono uppercase font-bold transition select-none cursor-pointer flex items-center gap-1"
+                          >
+                            <Check size={11} />
+                            <span>Approve ⚡</span>
+                          </button>
+                        </div>
                       </div>
-                    )}
+                    ))}
                   </div>
                 )}
+              </div>
 
-                {/* TAB 2: LIVE DATABASE LIST / DELETE */}
-                {activeTab === 'list' && (
-                  <div className="space-y-5">
-                    <div className="flex justify-between items-center">
-                      <h4 className="text-lg font-bold text-white tracking-tight">
-                        Live Shayari Directory
-                      </h4>
-                      <span className="text-xs font-mono text-zinc-500">
-                        {approvedShayaris.length} Live Items on Feed
-                      </span>
+              {/* Section 2: Publish Manual */}
+              <div id="add-manual-form" className="scroll-mt-10 bg-zinc-900/10 border border-zinc-900 p-5 rounded-2xl">
+                <span className="text-[10px] font-mono text-zinc-550 uppercase tracking-widest block mb-4">ESTABLISH OFFICIAL SEED ENTRY</span>
+                
+                <form onSubmit={handleAddSubmit} className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[9.5px] font-mono text-zinc-500 uppercase tracking-wider block">Poet / Author</label>
+                      <input 
+                        type="text"
+                        value={newShayariAuthor}
+                        onChange={(e) => setNewShayariAuthor(e.target.value)}
+                        placeholder="e.g. Anand Roy"
+                        className="w-full bg-zinc-950 border border-zinc-900 text-zinc-200 text-xs px-3.5 py-2 rounded-xl focus:border-red-500/40 outline-none transition"
+                      />
                     </div>
 
-                    <div className="grid grid-cols-1 gap-3.5">
-                      {approvedShayaris.map((sh) => (
-                        <div
-                          key={sh.id}
-                          className="flex items-center justify-between p-4 border border-zinc-900 rounded-2xl bg-zinc-900/20 hover:bg-zinc-900/40 transition text-left"
-                        >
-                          <div className="max-w-[80%] space-y-1.5">
-                            <p className="text-xs text-zinc-300 font-medium line-clamp-2 italic font-sans whitespace-pre-line">
-                              "{sh.text}"
-                            </p>
-                            <div className="flex items-center gap-2 text-[10px] font-mono text-zinc-500">
-                              <span className="text-red-400">{sh.category}</span>
-                              <span>•</span>
-                              <span>By {sh.author}</span>
-                            </div>
+                    <div className="space-y-1">
+                      <label className="text-[9.5px] font-mono text-zinc-500 uppercase tracking-wider block">Category Segment</label>
+                      <select
+                        value={newShayariCategory}
+                        onChange={(e) => setNewShayariCategory(e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-900 text-zinc-200 text-xs px-3 py-2 rounded-xl outline-none focus:border-red-500/40 transition"
+                      >
+                        {categories.map((cat) => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[9.5px] font-mono text-zinc-500 uppercase tracking-wider block">Highlight Words (Comma-Separated)</label>
+                      <input 
+                        type="text"
+                        value={newShayariHighlight}
+                        onChange={(e) => setNewShayariHighlight(e.target.value)}
+                        placeholder="e.g. अकड़, सितारे, औकात"
+                        className="w-full bg-zinc-950 border border-zinc-900 text-zinc-200 text-xs px-3.5 py-2 rounded-xl focus:border-red-500/40 outline-none transition"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[9.5px] font-mono text-zinc-500 uppercase tracking-wider block">Shayari Hindi / Hinglish Verses</label>
+                    <textarea 
+                      required
+                      rows={4}
+                      value={newShayariText}
+                      onChange={(e) => setNewShayariText(e.target.value)}
+                      placeholder="Enter poetry verses here... Use line splits normally."
+                      className="w-full bg-zinc-950 border border-zinc-900 text-zinc-200 text-xs p-4 rounded-xl focus:border-red-500/40 outline-none transition resize-none whitespace-pre-line"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 bg-gradient-to-r from-red-650 to-rose-700 text-white font-extrabold text-[11px] uppercase tracking-widest rounded-xl transition cursor-pointer select-none active:scale-98"
+                  >
+                    🚀 Release Instantly To Feed
+                  </button>
+                </form>
+              </div>
+
+              {/* Section 3: Live directory lists */}
+              <div id="live-feed-directory" className="scroll-mt-10 bg-zinc-900/10 border border-zinc-900 p-5 rounded-2xl space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 select-none">
+                  <div>
+                    <h3 className="text-sm font-black text-white uppercase">Live Database Directory</h3>
+                    <p className="text-[10px] text-zinc-550 font-mono mt-0.5">Filter, search, or purge live elements instantly</p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <div className="flex items-center bg-zinc-950 border border-zinc-900 rounded-xl px-2.5 max-w-[180px]">
+                      <Search size={12} className="text-zinc-500 shrink-0" />
+                      <input 
+                        type="text"
+                        placeholder="Search verses..."
+                        value={approvedSearch}
+                        onChange={(e) => setApprovedSearch(e.target.value)}
+                        className="bg-transparent border-none outline-none text-[11px] text-zinc-100 placeholder-zinc-650 w-full p-1.5 focus:ring-0"
+                      />
+                    </div>
+
+                    <select
+                      value={selectedCategoryFilter}
+                      onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                      className="bg-zinc-950 border border-zinc-900 text-zinc-300 text-[10.5px] rounded-xl px-2 py-1 outline-none"
+                    >
+                      <option value="All">All Categories</option>
+                      {categories.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* APPROVED LIST */}
+                <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1 no-scrollbar">
+                  {approvedShayaris
+                    .filter(sh => {
+                      const matchesSearch = sh.text.toLowerCase().includes(approvedSearch.toLowerCase());
+                      const matchesCategory = selectedCategoryFilter === 'All' || sh.category === selectedCategoryFilter;
+                      return matchesSearch && matchesCategory;
+                    })
+                    .map((sh) => (
+                      <div key={sh.id} className="p-4 bg-zinc-950 border border-zinc-900 rounded-2xl hover:border-zinc-850 transition duration-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="space-y-1.5 text-left flex-1">
+                          <div className="flex items-center gap-2 text-[10px] font-mono">
+                            <span className="text-red-500 uppercase font-black bg-red-955/10 border border-red-950/20 px-2 py-0.5 rounded leading-none">
+                              {sh.category}
+                            </span>
+                            <span className="text-zinc-500">• Created: {sh.createdAt ? sh.createdAt.split('T')[0] : 'Legendary'}</span>
+                            <span className="text-zinc-500 font-bold">• Author: {sh.author}</span>
                           </div>
+                          
+                          <p className="text-xs text-zinc-300 leading-relaxed max-w-[580px] select-text font-sans whitespace-pre-line">
+                            "{sh.text}"
+                          </p>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 shrink-0">
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(sh.text);
+                              alert('Verses written to core clipboard!');
+                            }}
+                            className="px-2.5 py-1.5 bg-zinc-900 text-[10px] font-mono text-zinc-400 hover:text-white rounded-lg transition border border-zinc-850 cursor-pointer"
+                          >
+                            Copy
+                          </button>
                           <button
                             onClick={() => onDeleteShayari(sh.id)}
-                            className="text-zinc-500 hover:text-red-500 p-2 border border-transparent hover:border-red-950 hover:bg-red-950/20 rounded-xl transition cursor-pointer"
-                            title="Delete permanently"
+                            className="p-1 px-2.5 bg-red-950/15 text-red-400 border border-red-955/20 hover:border-red-550/45 hover:bg-red-955/20 rounded-lg text-xs transition cursor-pointer"
+                            title="Purge permanently"
                           >
-                            <Trash2 size={14} />
+                            <Trash2 size={13} />
                           </button>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* TAB 3: ADD NEW SHAYARI FROM ADMIN */}
-                {activeTab === 'add' && (
-                  <div className="space-y-5">
-                    <h4 className="text-lg font-bold text-white tracking-tight">
-                      Draft & Publish Official Shayari
-                    </h4>
-
-                    {addShayariSuccess && (
-                      <div className="p-3 bg-green-950/30 border border-green-500/30 text-green-400 text-xs rounded-xl font-medium">
-                        🎉 Success! Shayari published instantly onto live portal feed.
                       </div>
-                    )}
+                    ))}
+                </div>
+              </div>
 
-                    <form onSubmit={handleAddNewShayari} className="space-y-4">
-                      {/* Text */}
-                      <div className="space-y-1.5 text-left">
-                        <label className="text-xs font-mono text-zinc-400 uppercase tracking-wider block">
-                          Shayari Content
-                        </label>
-                        <textarea
-                          value={newText}
-                          onChange={(e) => setNewText(e.target.value)}
-                          rows={4}
-                          placeholder="Bebakh likho, No rules..."
-                          className="w-full bg-zinc-900 border border-zinc-800 focus:border-red-500 text-white rounded-xl p-3 text-xs outline-none transition"
-                        />
-                      </div>
+            </div>
+          )}
 
-                      {/* Author */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-mono text-zinc-400 uppercase tracking-wider block">
-                            Author/Signature
-                          </label>
-                          <input
-                            type="text"
-                            value={newAuthor}
-                            onChange={(e) => setNewAuthor(e.target.value)}
-                            placeholder="Roy No Rules"
-                            className="w-full bg-zinc-900 border border-zinc-800 focus:border-red-500 text-white rounded-xl px-4 py-3 text-xs outline-none transition"
-                          />
-                        </div>
-
-                        {/* Category */}
-                        <div className="space-y-1.5">
-                          <label className="text-xs font-mono text-zinc-400 uppercase tracking-wider block">
-                            Select Category
-                          </label>
-                          <select
-                            value={newCategory}
-                            onChange={(e) => setNewCategory(e.target.value)}
-                            className="w-full bg-zinc-900 border border-zinc-800 focus:border-red-500 text-zinc-300 text-xs rounded-xl px-4 py-3 outline-none cursor-pointer"
-                          >
-                            {categories
-                              .filter((c) => c !== 'All')
-                              .map((cat) => (
-                                <option key={cat} value={cat}>
-                                  {cat}
-                                </option>
-                              ))}
-                          </select>
-                        </div>
-                      </div>
-
-                      {/* Auto highlights selector */}
-                      <div className="p-4 bg-zinc-900/60 rounded-2xl border border-zinc-805 space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs font-semibold text-zinc-300">
-                            Auto Highlighter Mode
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setAutoHighlight(!autoHighlight)}
-                            className="text-red-500 hover:text-red-400 p-1 flex items-center gap-1 text-xs cursor-pointer"
-                          >
-                            <ToggleLeft size={16} className={autoHighlight ? '' : 'rotate-180 text-zinc-500'} />
-                            <span>{autoHighlight ? 'Auto Highlights (On)' : 'Custom Highlights (On)'}</span>
-                          </button>
-                        </div>
-
-                        {!autoHighlight && (
-                          <div className="space-y-1 text-left">
-                            <label className="text-[10px] font-mono text-zinc-400 uppercase block">
-                              Enter words to highlight (separated by comma)
-                            </label>
-                            <input
-                              type="text"
-                              value={customHighlights}
-                              onChange={(e) => setCustomHighlights(e.target.value)}
-                              placeholder="E.g. raste, mushkil, manzil, kismat"
-                              className="w-full bg-zinc-950 border border-zinc-900 focus:border-red-500 text-white text-xs rounded-xl px-3 py-2 outline-none"
-                            />
-                          </div>
-                        )}
-                      </div>
-
-                      <button
-                        type="submit"
-                        disabled={!newText.trim()}
-                        className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-xl text-xs tracking-wider uppercase transition cursor-pointer disabled:opacity-30 disabled:pointer-events-none"
-                      >
-                        Publish Instantly
-                      </button>
-                    </form>
-                  </div>
-                )}
-
-                {/* TAB 4: USER ACCOUNT SECURITY MANAGEMENT (NEW) */}
-                {activeTab === 'users' && (
-                  <div className="space-y-5">
-                    <div className="flex justify-between items-center select-none text-left">
-                      <h4 className="text-lg font-bold text-white tracking-tight">
-                        Registered Users Registry 🛡️
-                      </h4>
-                      <span className="text-[10px] font-mono text-zinc-500 bg-zinc-950 px-2.5 py-1 rounded-xl border border-zinc-900">
-                        {users.length} Registered Community Profiles
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4">
-                      {users.map((item) => {
-                        const isBlocked = item.status === 'blocked';
-                        const isViewingActivity = activityUser === item.username;
-                        
+          {/* 3. USERS DIRECTORY */}
+          {activeTab === 'users' && (
+            <div className="space-y-5 animate-fade-in text-left">
+              <div className="bg-zinc-900/10 border border-zinc-900 p-5 rounded-2xl relative overflow-hidden">
+                <span className="text-[10px] font-mono text-zinc-550 uppercase tracking-widest block mb-4">MEMBER ROSTER INDEX (SECURE)</span>
+                
+                <div className="overflow-x-auto rounded-xl border border-zinc-900">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-zinc-950 border-b border-zinc-900 select-none text-zinc-450 font-mono text-[9px] uppercase tracking-wider">
+                        <th className="p-4 font-bold">Identity</th>
+                        <th className="p-4 font-bold">Mailbox Address</th>
+                        <th className="p-4 font-bold">Level / Badge</th>
+                        <th className="p-4 font-bold">Status</th>
+                        <th className="p-4 font-bold text-right" id="th-controls">Controls</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-900/60 bg-zinc-950/20">
+                      {userList.map((user) => {
+                        const analytics = calculateRoyCoinsForUser(user.username);
                         return (
-                          <div
-                            key={item.id}
-                            className={`p-5 rounded-2xl border transition-colors duration-300 text-left ${
-                              isBlocked 
-                                ? 'bg-red-950/10 border-red-500/20 shadow-[0_0_15px_rgba(239,68,68,0.02)]' 
-                                : 'bg-zinc-900/40 border-zinc-900 hover:border-zinc-850'
-                            } space-y-4`}
-                          >
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <tr key={user.id} className="hover:bg-zinc-900/30 transition">
+                            <td className="p-4">
                               <div className="flex items-center gap-3">
-                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm ${
-                                  isBlocked 
-                                    ? 'bg-red-950 border border-red-500/30 text-red-500 animate-pulse' 
-                                    : 'bg-zinc-950 border border-zinc-900 text-zinc-300'
-                                }`}>
-                                  {item.realName.charAt(0)}
+                                <div className="w-7 h-7 rounded-lg bg-zinc-900 border border-zinc-850 flex items-center justify-center font-bold text-white uppercase text-xs">
+                                  {user.realName.charAt(0)}
                                 </div>
-                                <div className="text-left">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm font-black text-zinc-100">{item.realName}</span>
-                                    <span className="text-xs font-mono text-zinc-550">@{item.username}</span>
-                                    {item.badge && (
-                                      <span className="text-[8px] tracking-wider font-mono uppercase bg-red-950/20 border border-red-950/40 text-red-400 px-1.5 py-0.25 rounded">
-                                        {item.badge}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <span className="text-xs text-zinc-400 font-sans block mt-0.5">{item.email}</span>
+                                <div className="text-left font-mono">
+                                  <span className="text-white font-bold block">{user.realName}</span>
+                                  <span className="text-[10px] text-zinc-500 mt-0.5 block">@{user.username}</span>
                                 </div>
                               </div>
-
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className={`text-[9px] font-mono font-black uppercase px-2 py-0.5 rounded-lg border ${
-                                  isBlocked 
-                                    ? 'bg-red-950/30 border-red-500/20 text-red-400 font-extrabold shadow-[0_0_10px_rgba(239,68,68,0.15)]' 
-                                    : 'bg-emerald-950/25 border-emerald-500/20 text-emerald-400 font-extrabold'
-                                }`}>
-                                  {item.status === 'blocked' ? '🚫 Blocked' : '✅ Active'}
-                                </span>
-                                <span className="text-[9px] font-mono text-zinc-550 bg-zinc-950 border border-zinc-900 px-2 py-0.5 rounded-lg">
-                                  {item.activityCount || 0} Actions Logged
-                                </span>
-                                <span className="text-[9px] font-mono text-zinc-600">
-                                  Joined {new Date(item.createdAt).toLocaleDateString()}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Secure check: verify no passwords displayed */}
-                            <div className="text-[9px] font-mono text-zinc-700 bg-zinc-950/40 p-2 rounded-lg border border-zinc-950 text-left">
-                              🔒 Cryptographic Password: <span className="text-emerald-500 font-bold uppercase text-[8px] tracking-wider">SHA-256 Hashed & Secured (Hidden from Admin)</span>
-                            </div>
-
-                            {/* Controls buttons row */}
-                            <div className="flex flex-wrap border-t border-zinc-900/50 pt-3.5 justify-end gap-2.5">
-                              {/* View Action Logs Button */}
+                            </td>
+                            <td className="p-4 font-mono text-[11px] text-zinc-400">
+                              {user.email}
+                            </td>
+                            <td className="p-4 font-mono select-none">
+                              <span className="text-red-500 font-bold block">
+                                {user.badge || 'Resident Creator'}
+                              </span>
+                              <span className="text-[10px] text-zinc-500 block">
+                                Activities: {user.activityCount || 0} times
+                              </span>
+                            </td>
+                            <td className="p-4 font-mono select-none">
+                              <span className={`px-2 py-0.5 rounded text-[9.5px] font-bold border ${
+                                user.status === 'blocked'
+                                  ? 'bg-red-950/10 border-red-500/20 text-red-500'
+                                  : 'bg-emerald-950/10 border-emerald-500/20 text-emerald-400'
+                              }`}>
+                                {user.status === 'blocked' ? 'BLOCKED' : 'ACTIVE'}
+                              </span>
+                            </td>
+                            <td className="p-4 text-right">
                               <button
-                                onClick={() => {
-                                  setActivityUser(isViewingActivity ? null : item.username);
-                                }}
-                                className={`px-3 py-1.5 border text-xs font-mono rounded-xl transition flex items-center gap-1.5 cursor-pointer ${
-                                  isViewingActivity 
-                                    ? 'bg-zinc-900 border-zinc-800 text-white font-extrabold' 
-                                    : 'bg-zinc-950 border-zinc-900 text-zinc-400 hover:text-white hover:border-zinc-800'
-                                }`}
+                                onClick={() => handleDeleteUser(user.id)}
+                                className="px-2.5 py-1.5 bg-zinc-950 border border-zinc-900 hover:border-red-900/40 text-zinc-500 hover:text-red-400 text-[10px] font-mono uppercase font-bold rounded-lg transition cursor-pointer"
                               >
-                                <Activity size={12} className={isViewingActivity ? 'animate-spin' : ''} style={{ animationDuration: '3s' }} />
-                                <span>{isViewingActivity ? 'Close Logs' : 'Audit Activity'}</span>
+                                Delete Account
                               </button>
-
-                              {/* Block toggle */}
-                              <button
-                                onClick={() => {
-                                  const targetState = !isBlocked;
-                                  setBlockUserStatus(item.id, targetState);
-                                  refreshUsersList();
-                                }}
-                                className={`px-3.5 py-1.5 border rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
-                                  isBlocked
-                                    ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-400 hover:bg-emerald-600 hover:border-emerald-550 hover:text-white shadow-[0_0_12px_rgba(16,185,129,0.15)]'
-                                    : 'bg-red-950/10 border-red-500/20 text-red-500 hover:bg-red-650 hover:border-red-500 hover:text-white font-bold'
-                                }`}
-                              >
-                                {isBlocked ? (
-                                  <>
-                                    <Check size={12} />
-                                    <span>Unblock Member</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <ShieldOff size={12} />
-                                    <span>Block Member</span>
-                                  </>
-                                )}
-                              </button>
-
-                              {/* Delete button */}
-                              {/* Users cannot self-delete admin account */}
-                              <button
-                                onClick={() => {
-                                  if (confirm(`Are you absolutely certain you want to permanently delete user @${item.username}? This removes identity and purges all custom uploads. This is irreversible!`)) {
-                                    deleteUserFromDb(item.id);
-                                    refreshUsersList();
-                                  }
-                                }}
-                                className="px-3.5 py-1.5 bg-zinc-950 border border-zinc-905 hover:bg-red-950/20 hover:border-red-500/30 text-zinc-500 hover:text-red-400 rounded-xl text-xs transition-colors font-medium flex items-center gap-1.5 cursor-pointer"
-                                title="Delete user"
-                              >
-                                <Trash2 size={12} />
-                                <span>Purge Profile</span>
-                              </button>
-                            </div>
-
-                            {/* VIEW ACTIVITY logs inline with transition */}
-                            <AnimatePresence>
-                              {isViewingActivity && (
-                                <motion.div
-                                  initial={{ opacity: 0, height: 0 }}
-                                  animate={{ opacity: 1, height: 'auto' }}
-                                  exit={{ opacity: 0, height: 0 }}
-                                  className="border-t border-zinc-900/50 pt-3.5 overflow-hidden space-y-2.5 text-left"
-                                >
-                                  <h5 className="text-[10px] font-mono font-black text-rose-500 uppercase tracking-widest flex items-center gap-1.5">
-                                    <Activity size={10} className="animate-pulse" />
-                                    <span>Identity Audits Logs for @{item.username}</span>
-                                  </h5>
-                                  <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-900 max-h-48 overflow-y-auto space-y-2">
-                                    {getActivityLogs().filter(log => log.username.toLowerCase() === item.username.toLowerCase()).length === 0 ? (
-                                      <p className="text-[10px] text-zinc-700 font-mono italic text-center">No transactions locked in history database.</p>
-                                    ) : (
-                                      getActivityLogs()
-                                        .filter(log => log.username.toLowerCase() === item.username.toLowerCase())
-                                        .map(log => (
-                                          <div key={log.id} className="text-[10.5px] font-mono flex items-start gap-2 border-b border-zinc-900/50 pb-1.5 justify-between">
-                                            <div className="space-y-0.5 pr-2">
-                                              <span className="text-zinc-300 font-bold bg-zinc-900 border border-zinc-850 px-1.5 py-0.25 rounded text-[8px] mr-1.5 uppercase font-sans">
-                                                {log.action}
-                                              </span>
-                                              <span className="text-zinc-400 font-sans">{log.details}</span>
-                                            </div>
-                                            <span className="text-[9px] text-zinc-600 select-none shrink-0 font-light mt-0.5">
-                                              {new Date(log.timestamp).toLocaleTimeString() || log.timestamp}
-                                            </span>
-                                          </div>
-                                        ))
-                                    )}
-                                  </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>
+                            </td>
+                          </tr>
                         );
                       })}
-                    </div>
-                  </div>
-                )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
 
-                {/* TAB 5: CATEGORY MANAGER */}
-                {activeTab === 'categories' && (
-                  <div className="space-y-5">
-                    <h4 className="text-lg font-bold text-white tracking-tight">
-                      Manage Live Categories List
-                    </h4>
+          {/* 4. DEFENSIVE MODERATION BOARD */}
+          {activeTab === 'block_unblock' && (
+            <div className="space-y-6 animate-fade-in text-left">
+              <div className="bg-zinc-900/10 border border-zinc-900 p-5 rounded-2xl relative overflow-hidden">
+                <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest block mb-4">CRITICAL ACCESS BLACKLIST (SECURITY)</span>
+                
+                <p className="text-xs text-zinc-400 mb-5 leading-relaxed max-w-2xl font-sans">
+                  Block specific usernames or registered IDs instantly. Blocked accounts are immediately denied entry logs and cannot view the social stream or submit content.
+                </p>
 
-                    {/* Add Category inline Form */}
-                    <form onSubmit={handleAddCategorySubmit} className="flex gap-2">
-                      <input
-                        type="text"
-                        value={categoryName}
-                        onChange={(e) => setCategoryName(e.target.value)}
-                        placeholder="Type new category (e.g., Attitude, Shayari)"
-                        className="flex-1 bg-zinc-900 border border-zinc-800 focus:border-red-500 text-white rounded-xl px-4 py-2.5 text-xs outline-none transition"
-                      />
-                      <button
-                        type="submit"
-                        disabled={!categoryName.trim()}
-                        className="bg-red-600 hover:bg-red-700 text-white rounded-xl px-4 py-2 text-xs font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-45"
-                      >
-                        <Plus size={14} />
-                        <span>Add Category</span>
-                      </button>
-                    </form>
-
-                    {/* Directory of categories */}
-                    <div className="pt-2 text-left">
-                      <label className="text-xs font-mono text-zinc-400 uppercase tracking-wider block mb-3.5">
-                        Current Categories ({categories.length})
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {categories.map((cat) => (
-                          <span
-                            key={cat}
-                            className="bg-zinc-900 border border-zinc-850 text-xs text-zinc-300 font-mono px-4 py-2 rounded-xl flex items-center justify-between gap-3"
-                          >
-                            <span>{cat}</span>
-                            {cat !== 'All' && (
-                              <span className="text-[9px] text-zinc-500 bg-zinc-950 px-2 py-0.5 rounded-full border border-zinc-900">
-                                Active Usage
-                              </span>
-                            )}
+                <div className="space-y-3">
+                  {userList.map((user) => (
+                    <div 
+                      key={user.id} 
+                      className="p-4 bg-zinc-950 border border-zinc-905 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-zinc-805 transition duration-200"
+                    >
+                      <div className="flex items-center gap-3 text-left">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black ${
+                          user.status === 'blocked' 
+                            ? 'bg-red-950/40 border border-red-900/40 text-red-500'
+                            : 'bg-zinc-900 border border-zinc-850 text-white'
+                        }`}>
+                          {user.status === 'blocked' ? '🚫' : '✓'}
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-white select-text">
+                            {user.realName} <span className="text-xs text-zinc-500 font-mono">(@{user.username})</span>
+                          </h4>
+                          <span className="text-[10.5px] font-mono text-zinc-500 block mt-0.5">
+                            Signed: {user.createdAt ? user.createdAt.split('T')[0] : 'Historical'} • Mail: {user.email}
                           </span>
-                        ))}
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                )}
 
-                {/* TAB 6: SMART ADS MANAGEMENT */}
-                {activeTab === 'ads' && (
-                  <div className="space-y-6 text-left">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-900 pb-4 select-none">
-                      <div>
-                        <h4 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
-                          <Megaphone className="text-red-500 animate-pulse" size={18} />
-                          <span>Adsterra Smart Ads System</span>
-                        </h4>
-                        <p className="text-xs text-zinc-400 mt-1 font-sans">
-                          Sustain and monetize your universe without disrupting the dark aesthetic or emotional flow.
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs font-mono text-zinc-500">GLOBAL STATE</span>
+                      <div className="flex items-center gap-2 select-none">
                         <button
-                          type="button"
-                          onClick={() => {
-                            const updated = { ...adsConfig, isEnabled: !adsConfig.isEnabled };
-                            setAdsConfig(updated);
-                            saveAdsConfig(updated);
-                          }}
-                          className={`px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 border transition duration-300 cursor-pointer ${
-                            adsConfig.isEnabled
-                              ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-450 shadow-[0_0_15px_rgba(16,185,129,0.1)] font-bold'
-                              : 'bg-red-950/10 border-red-500/20 text-red-500 font-medium'
+                          onClick={() => handleToggleBlock(user.id, user.status === 'blocked')}
+                          className={`px-4 py-2 text-[10.5px] font-mono font-black uppercase rounded-xl transition-all duration-300 pointer-events-auto cursor-pointer border ${
+                            user.status === 'blocked'
+                              ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-400 hover:bg-emerald-950/40 shadow-lg'
+                              : 'bg-red-950/20 border-red-500/20 text-red-550 hover:bg-red-955/35'
                           }`}
                         >
-                          <ToggleLeft size={16} className={adsConfig.isEnabled ? '' : 'rotate-180 text-zinc-550'} />
-                          <span>{adsConfig.isEnabled ? 'Ads Active (ON)' : 'Ads Stopped (OFF)'}</span>
+                          {user.status === 'blocked' ? '⚡ Lift Ban (Unblock)' : '⛔ Impose Permanent Ban'}
                         </button>
                       </div>
                     </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {/* Left: Settings Panel */}
-                      <div className="space-y-5">
-                        {/* 1. Paste Script Content */}
-                        <div className="p-5 bg-zinc-900/30 border border-zinc-900 rounded-2xl space-y-3">
-                          <div className="flex justify-between items-center">
-                            <label className="text-xs font-mono text-zinc-400 uppercase tracking-wider block font-bold">
-                              Adsterra Script Fragment
-                            </label>
-                            <span className="text-[10px] font-mono text-zinc-650">HTML / JS Banner Code</span>
-                          </div>
-                          
-                          <textarea
-                            value={adsConfig.adsterraScript}
-                            onChange={(e) => {
-                              const updated = { ...adsConfig, adsterraScript: e.target.value };
-                              setAdsConfig(updated);
-                              saveAdsConfig(updated);
-                            }}
-                            rows={8}
-                            placeholder="<!-- Paste your Adsterra native banner code snippet here -->"
-                            className="w-full bg-zinc-950 border border-zinc-900 focus:border-red-500/50 text-zinc-350 font-mono text-[10px] p-3 rounded-xl outline-none transition"
-                          />
+          {/* 5. ADSTERRA INTUITIVE ADS CONTAINER */}
+          {activeTab === 'ads' && (
+            <div className="space-y-6 animate-fade-in text-left">
+              <div className="bg-zinc-900/10 border border-zinc-900 p-5 rounded-2xl">
+                <span className="text-[10px] font-mono text-zinc-550 uppercase tracking-widest block mb-4">ADSTERRA INTELLIGENT ADS CHANNELS</span>
+                
+                <p className="text-xs text-zinc-400 leading-relaxed mb-6">
+                  Manage commercial ad placements on Roy No Rules. Choose placeholder configuration or customize the direct script vectors. Ads helps support the server hosting cost of this database.
+                </p>
 
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const resetConfig = { ...adsConfig, adsterraScript: `<!-- Sample Adsterra Banner Widget -->
-<script type="text/javascript">
-	atOptions = {
-		'key' : 'sample_adsterra_key_9fcf3d0b2f',
-		'format' : 'iframe',
-		'height' : 90,
-		'width' : 728,
-		'params' : {}
-	};
-</script>
-<script type="text/javascript" src="//www.creativeformat.com/sample_key/invoke.js"></script>` };
-                                setAdsConfig(resetConfig);
-                                saveAdsConfig(resetConfig);
-                              }}
-                              className="px-3.5 py-1.5 border border-zinc-850 px-2 text-zinc-400 hover:text-white rounded-xl text-xs transition bg-zinc-950 cursor-pointer w-full"
-                            >
-                              Reset to Sample
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const cleared = { ...adsConfig, adsterraScript: '' };
-                                setAdsConfig(cleared);
-                                saveAdsConfig(cleared);
-                              }}
-                              className="px-3.5 py-1.5 border border-red-950/40 hover:bg-red-950/10 text-red-500 rounded-xl text-xs transition bg-zinc-950 w-full cursor-pointer"
-                            >
-                              Clear Script
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* 2. Frequency Config */}
-                        <div className="p-5 bg-zinc-900/30 border border-zinc-900 rounded-2xl space-y-3.5">
-                          <div className="flex justify-between items-center">
-                            <label className="text-xs font-mono text-zinc-400 uppercase tracking-wider block font-bold">
-                              Show Ad After Every N Posts
-                            </label>
-                            <span className="text-xs font-mono text-red-500 font-black">{adsConfig.adFrequency} Posts</span>
-                          </div>
-                          <input
-                            type="range"
-                            min="3"
-                            max="10"
-                            value={adsConfig.adFrequency}
-                            onChange={(e) => {
-                              const num = parseInt(e.target.value, 10);
-                              const updated = { ...adsConfig, adFrequency: num };
-                              setAdsConfig(updated);
-                              saveAdsConfig(updated);
-                            }}
-                            className="w-full h-1 bg-zinc-900 rounded-lg appearance-none cursor-pointer accent-red-500"
-                          />
-                          <p className="text-[10px] text-zinc-500 leading-relaxed font-sans">
-                            Recommended spacing is 5-7 cards. Too frequent might feel spammy, while too rare will decrease monetization.
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Right: Placements Grid */}
-                      <div className="space-y-5">
-                        <div className="p-5 bg-zinc-900/30 border border-zinc-900 rounded-2xl space-y-3">
-                          <label className="text-xs font-mono text-zinc-400 uppercase tracking-wider block font-bold">
-                            Active Placements Matrix
-                          </label>
-                          <p className="text-[10px] text-zinc-500 leading-relaxed">
-                            Control exactly which touchpoints load responsive banner scripts. Turn them on/off dynamically.
-                          </p>
-
-                          <div className="space-y-2.5 pt-2">
-                            {(Object.keys(adsConfig.placements) as Array<keyof AdsConfig['placements']>).map((p) => {
-                              const isPlacementOn = adsConfig.placements[p];
-                              const userFriendlyName = p
-                                .replace(/([A-Z])/g, ' $1')
-                                .replace(/^./, (str) => str.toUpperCase());
-                                
-                              return (
-                                <div
-                                  key={p}
-                                  onClick={() => {
-                                    const updated = {
-                                      ...adsConfig,
-                                      placements: {
-                                        ...adsConfig.placements,
-                                        [p]: !adsConfig.placements[p],
-                                      },
-                                    };
-                                    setAdsConfig(updated);
-                                    saveAdsConfig(updated);
-                                  }}
-                                  className={`flex items-center justify-between p-3 border rounded-xl cursor-pointer transition duration-200 ${
-                                    isPlacementOn
-                                      ? 'bg-zinc-900/50 border-zinc-800 text-white'
-                                      : 'bg-zinc-950/20 border-zinc-950 text-zinc-500 hover:text-zinc-400'
-                                  }`}
-                                >
-                                  <span className="text-xs font-medium font-sans">
-                                    {userFriendlyName}
-                                  </span>
-                                  <span className={`text-[9px] font-mono uppercase px-2 py-0.5 rounded-md ${
-                                    isPlacementOn
-                                      ? 'bg-emerald-950 text-emerald-400 border border-emerald-900/40 font-bold'
-                                      : 'bg-zinc-950 text-zinc-500 border border-zinc-900/50'
-                                  }`}>
-                                    {isPlacementOn ? 'Active' : 'Disabled'}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
+                <div className="space-y-5">
+                  <div className="bg-zinc-950 p-4.5 border border-zinc-900 rounded-2xl space-y-3">
+                    <div className="flex justify-between items-center text-xs font-bold text-white">
+                      <span>Header Banner Spot (728x90 Billboard)</span>
+                      <span className="text-emerald-500 uppercase font-mono text-[9.5px]">Active State</span>
                     </div>
+                    <p className="text-[10.5px] text-zinc-500 leading-relaxed">
+                      Mounted at header and near the top menu on mobile views. Auto-shuffles with related shayari posts inside.
+                    </p>
+                    <textarea 
+                      readOnly
+                      rows={2}
+                      value="<!-- Adsterra Header banner placeholder script code tag active -->"
+                      className="w-full bg-zinc-900 text-zinc-400 font-mono text-[10px] p-2.5 rounded-lg border border-zinc-850 focus:outline-none resize-none"
+                    />
+                  </div>
 
-                    {/* Bottom: QA Visual Live Preview Section */}
-                    <div className="p-5 bg-zinc-900/30 border border-zinc-900 rounded-2xl space-y-4">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-900 pb-3">
-                        <div className="text-left">
-                          <label className="text-xs font-mono text-zinc-400 uppercase tracking-wider block font-bold">
-                            Interactive QA Preview System 👀
-                          </label>
-                          <p className="text-[10px] text-zinc-500 leading-relaxed mt-0.5 font-sans">
-                            Select placement layout format below to experience true spacing and mock visual rendering:
+                  <div className="bg-zinc-950 p-4.5 border border-zinc-900 rounded-2xl space-y-3">
+                    <div className="flex justify-between items-center text-xs font-bold text-white">
+                      <span>Bottom stream spot (300x250 Medium Rectangle)</span>
+                      <span className="text-emerald-500 uppercase font-mono text-[9.5px]">Active State</span>
+                    </div>
+                    <p className="text-[10.5px] text-zinc-500 leading-relaxed">
+                      Mounted underneath the pagination load-more button. Maximizes view through high contrast background colors.
+                    </p>
+                    <textarea 
+                      readOnly
+                      rows={2}
+                      value="<!-- Adsterra Bottom stream banner placeholder script code tag active -->"
+                      className="w-full bg-zinc-900 text-zinc-400 font-mono text-[10px] p-2.5 rounded-lg border border-zinc-850 focus:outline-none resize-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 6. SETTINGS PANES */}
+          {activeTab === 'settings' && (
+            <div className="space-y-6 animate-fade-in text-left">
+              
+              {/* Purge / Cache storage section */}
+              <div className="bg-zinc-900/10 border border-zinc-900 p-5 rounded-2xl space-y-4">
+                <span className="text-[10px] font-mono text-zinc-550 uppercase tracking-widest block">FACTORY REGISTRY OVERRIDES</span>
+                <h3 className="text-sm font-black text-white uppercase font-sans">Clear Persistent Storage Cache</h3>
+                
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  Clear device data including recent draft saves and telemetry comments. Resets all database streams back to official factory standards immediately. This command is processed client-side.
+                </p>
+
+                <button
+                  onClick={() => {
+                    if (confirm('Are you absolutely certain you want to clear localStorage persistent registry databases back to standard index seeding? This deletes all custom user accounts, feedback logs, and metadata comments.')) {
+                      localStorage.clear();
+                      alert('Local persistent databases cleared! Reloading the portal...');
+                      window.location.reload();
+                    }
+                  }}
+                  className="px-4 py-2.5 bg-zinc-950 hover:bg-red-955/20 border border-zinc-900 hover:border-red-500/35 text-zinc-400 hover:text-red-400 font-mono text-[10px] uppercase font-bold rounded-xl transition duration-300"
+                >
+                  Clear System Cache and Databases 🔄
+                </button>
+              </div>
+
+            </div>
+          )}
+
+          {/* 7. SEO METRICS PANEL */}
+          {activeTab === 'seo' && (
+            <div className="space-y-6 animate-fade-in text-left">
+              <div className="bg-zinc-900/10 border border-zinc-900 p-5 rounded-2xl space-y-4">
+                <span className="text-[10px] font-mono text-red-500 uppercase tracking-widest block">CANONICAL SEARCH INDEXING</span>
+                
+                <p className="text-xs text-zinc-400 leading-relaxed max-w-2xl font-sans">
+                  Generate SEO friendly url structure for each poet card to rank on yahoo/google correctly. Hindi Unicode symbols are parsed and transliterated into English matching search schemas.
+                </p>
+
+                <div className="bg-zinc-950 border border-zinc-900 p-4 rounded-xl font-mono text-xs space-y-3">
+                  <div className="flex justify-between items-center text-[10.5px]">
+                    <span className="text-zinc-500">Google Search Verification File Path</span>
+                    <span className="text-emerald-500 uppercase">PROVISIONED AND REACHABLE</span>
+                  </div>
+                  <pre className="p-3 bg-zinc-900 rounded border border-zinc-850 text-zinc-400 text-[10px] select-text">
+                    /google59b50fef3e93f851.html
+                  </pre>
+                </div>
+
+                <div className="bg-zinc-950 border border-zinc-900 p-4 rounded-xl font-mono text-xs space-y-3">
+                  <div className="flex justify-between items-center text-[10.5px]">
+                    <span className="text-zinc-500">Live XML Sitemap URL Address</span>
+                    <span className="text-emerald-500 uppercase">AUTO-REGENERATING (ONLINE)</span>
+                  </div>
+                  <pre className="p-3 bg-zinc-900 rounded border border-zinc-850 text-zinc-400 text-[10px] select-text">
+                    https://royversehub.netlify.app/sitemap.xml
+                  </pre>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 8. SUPPORT MAIL SCREEN */}
+          {activeTab === 'messages' && (
+            <div className="space-y-6 animate-fade-in text-left">
+              <div className="bg-zinc-900/10 border border-zinc-900 p-5 rounded-2xl space-y-4">
+                <span className="text-[10px] font-mono text-zinc-550 uppercase tracking-widest block mb-4">INCOMING VISITOR ENVELOPE QUEUE</span>
+                
+                {supportMessages.length === 0 ? (
+                  <div className="text-center py-12 border border-dashed border-zinc-900 rounded-xl">
+                    <span className="text-xl">📩</span>
+                    <h5 className="text-xs font-mono text-zinc-500 uppercase mt-2">Inbox and feedback empty</h5>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {supportMessages.map((msg) => (
+                      <div key={msg.id} className="p-4 bg-zinc-950 border border-zinc-900 rounded-2xl hover:border-zinc-850 transition duration-200">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-900 pb-2.5 mb-3 select-none">
+                          <div className="text-left font-mono">
+                            <span className="text-white font-bold block text-xs">{msg.name}</span>
+                            <span className="text-[10px] text-zinc-500 block mt-0.5">{msg.email}</span>
+                          </div>
+                          <span className="text-[9.5px] font-mono uppercase text-red-500 bg-red-955/10 border border-red-950/20 px-2 py-0.5 rounded leading-none shrink-0 sm:text-right">
+                            {msg.category.toUpperCase()} • {new Date(msg.timestamp).toLocaleDateString()}
+                          </span>
+                        </div>
+
+                        <div className="text-left space-y-2">
+                          <h4 className="text-xs font-bold text-zinc-200 select-text">Subject: {msg.subject}</h4>
+                          <p className="text-xs text-zinc-400 font-sans leading-relaxed select-text">
+                            "{msg.message}"
                           </p>
                         </div>
-                        
-                        <select
-                          value={testPlacement}
-                          onChange={(e) => setTestPlacement(e.target.value as keyof AdsConfig['placements'])}
-                          className="bg-zinc-950 border border-zinc-900 text-zinc-300 text-xs px-3.5 py-1.5 rounded-xl outline-none cursor-pointer focus:border-red-500"
-                        >
-                          {(Object.keys(adsConfig.placements) as Array<keyof AdsConfig['placements']>).map((p) => (
-                            <option key={p} value={p}>
-                              {p.replace(/([A-Z])/g, ' $1').toLowerCase()}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
 
-                      {/* Display live component in action */}
-                      <div className="py-2.5 bg-black/40 rounded-xl p-3 border border-zinc-950 relative overflow-hidden">
-                        <PremiumAdContainer placement={testPlacement} forcePreview={true} />
+                        <div className="flex items-center justify-end gap-2 text-right pt-3 mt-4 border-t border-zinc-900/50 select-none">
+                          <button
+                            onClick={() => {
+                              setSupportMessages(prev => prev.filter(m => m.id !== msg.id));
+                              alert('Message handled and archived!');
+                            }}
+                            className="px-2.5 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-850 text-zinc-400 rounded-lg text-[10px] font-mono uppercase font-bold transition cursor-pointer"
+                          >
+                            Archive
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    ))}
                   </div>
                 )}
               </div>
             </div>
           )}
-        </AnimatePresence>
-      </div>
+
+          {/* 9. MOOD SYSTEM CONFIGURATION */}
+          {activeTab === 'mood' && (
+            <div className="space-y-6 animate-fade-in text-left">
+              {/* Add Custom Category Form */}
+              <div className="bg-zinc-900/10 border border-zinc-900 p-5 rounded-2xl space-y-4">
+                <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest block">EXTEND EMOTIONAL CLASSIFIERS</span>
+                <h3 className="text-sm font-black text-white uppercase font-sans">Introduce New Category State</h3>
+
+                <form onSubmit={handleCatSubmit} className="flex gap-2">
+                  <input 
+                    type="text"
+                    required
+                    value={addCatName}
+                    onChange={(e) => setAddCatName(e.target.value)}
+                    placeholder="e.g. Broken Soul, Midnight Thoughts"
+                    className="bg-zinc-950 border border-zinc-900 text-zinc-200 text-xs px-3.5 py-2.5 rounded-xl focus:border-red-500/40 outline-none transition flex-1"
+                  />
+                  <button
+                    type="submit"
+                    className="px-4 py-2.5 bg-gradient-to-r from-red-650 to-rose-700 text-white font-mono text-[10px] uppercase font-black tracking-widest rounded-xl transition cursor-pointer select-none active:scale-95 flex items-center gap-1.5"
+                  >
+                    <Plus size={12} />
+                    <span>Append Category</span>
+                  </button>
+                </form>
+
+                <p className="text-[10px] text-zinc-500 leading-normal">
+                  Registered categories appear dynamically on feed banners, search fields, creators dropdown, and SEO generator lists.
+                </p>
+              </div>
+
+              {/* Active Atmosphere lists */}
+              <div className="bg-zinc-900/10 border border-zinc-900 p-5 rounded-2xl space-y-4">
+                <span className="text-[10px] font-mono text-zinc-550 uppercase tracking-widest block">ACTIVE EMOTIONS STREAM SCHEMAS ({categories.length})</span>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 select-none">
+                  {categories.map((c) => (
+                    <div key={c} className="p-3 bg-zinc-950 border border-zinc-900 rounded-xl font-mono text-xs text-zinc-300 flex items-center justify-between">
+                      <span className="font-bold truncate">{c}</span>
+                      <span className="text-[9px] text-zinc-550 leading-none bg-zinc-900 border border-zinc-850 px-1.5 py-0.5 rounded">ACTIVE</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+      </main>
     </div>
   );
 }

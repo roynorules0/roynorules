@@ -156,14 +156,14 @@ export default function PremiumAdContainer({ placement, forcePreview = false }: 
     >
       <div className="relative rounded-2xl bg-zinc-950/60 border border-zinc-900/65 backdrop-blur-md overflow-hidden max-w-2xl mx-auto shadow-[0_5px_15px_rgba(0,0,0,0.5)]">
         {/* Ad Premium Badge Header */}
-        <div className="flex items-center justify-between px-4 py-1.5 bg-gradient-to-r from-red-950/20 via-zinc-950 to-zinc-950/10 border-b border-zinc-900/60 select-none text-[8px] font-mono tracking-widest text-zinc-550 lowercase">
-          <div className="flex items-center gap-1.5">
+        <div className="flex items-center justify-between px-4 py-1.5 bg-gradient-to-r from-red-950/20 via-zinc-950 to-zinc-950/10 border-b border-zinc-900/60 select-none text-[8px] font-mono tracking-widest text-zinc-500 uppercase">
+          <div className="flex items-center gap-1.5 font-medium">
             <Sparkles size={8} className="text-red-500 animate-pulse" />
-            <span>sponsor attraction</span>
+            <span>Featured Partner</span>
           </div>
-          <div className="flex items-center gap-1">
-            <ShieldCheck size={9} className="text-emerald-500" />
-            <span>Anti-Spam Verified</span>
+          <div className="flex items-center gap-1 font-medium">
+            <ShieldCheck size={9} className="text-zinc-600" />
+            <span>Verified Post</span>
           </div>
         </div>
 

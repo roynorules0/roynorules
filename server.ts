@@ -68,19 +68,51 @@ function saveDb() {
 // Automatically load database on launch
 loadDb();
 
-// Unified slugs helper
+// Unified transliteration + slugs helper
+function transliterateDevanagari(text: string): string {
+  const map: Record<string, string> = {
+    'अ': 'a', 'आ': 'aa', 'इ': 'i', 'ई': 'ee', 'उ': 'u', 'ऊ': 'oo', 'ऋ': 'ri', 'ए': 'e', 'ऐ': 'ai', 'ओ': 'o', 'औ': 'au',
+    'क': 'k', 'ख': 'kh', 'ग': 'g', 'घ': 'gh', 'ङ': 'ng',
+    'च': 'ch', 'छ': 'chh', 'ज': 'j', 'झ': 'jh', 'ञ': 'ny',
+    'ट': 't', 'ठ': 'th', 'ड': 'd', 'ढ': 'dh', 'ण': 'n',
+    'त': 't', 'थ': 'th', 'द': 'd', 'ध': 'dh', 'न': 'n',
+    'प': 'p', 'फ': 'ph', 'ब': 'b', 'भ': 'bh', 'म': 'm',
+    'य': 'y', 'र': 'r', 'ल': 'l', 'व': 'v', 'श': 'sh', 'ष': 'sh', 'स': 's', 'ह': 'h',
+    'ा': 'a', 'ि': 'i', 'ी': 'ee', 'ु': 'u', 'ू': 'oo', 'ृ': 'ri', 'े': 'e', 'ै': 'ai', 'ो': 'o', 'ौ': 'au',
+    'ं': 'n', 'ः': 'h', 'ँ': 'n', '़': '', '्': '',
+    'ज़': 'z', 'फ़': 'f', 'ख़': 'kh', 'ग़': 'g', 'ढ़': 'dh', 'ड़': 'd'
+  };
+
+  let transliterated = '';
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const nextChar = text[i + 1] || '';
+    const combo = char + nextChar;
+    
+    if (map[combo] !== undefined) {
+      transliterated += map[combo];
+      i++; // skip next character
+    } else if (map[char] !== undefined) {
+      transliterated += map[char];
+    } else {
+      transliterated += char;
+    }
+  }
+  return transliterated;
+}
+
 function buildSimpleSlug(category: string, text: string, id: string): string {
   const cleanCat = category.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
-  // Roman/English words extractions for Hinglish/Unicode clean paths
-  const cleanText = text
+  const romanized = transliterateDevanagari(text);
+  const clean = romanized
     .toLowerCase()
-    .replace(/[^\w\s]/g, '') // remove special chars
+    .replace(/[^a-z0-9\s-]/g, ' ')
     .trim()
-    .split(/\s+/)
-    .slice(0, 4)
-    .join('-');
-  const part = cleanText || 'emotion';
-  return `${cleanCat}/${part}-${id}`;
+    .replace(/\s+/g, '-');
+    
+  const parts = clean.split('-').filter(Boolean).slice(0, 5).join('-');
+  const finalPart = parts || 'vibe';
+  return `${cleanCat}/${finalPart}-${id}`;
 }
 
 // API Routes

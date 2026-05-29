@@ -67,11 +67,11 @@ export default function CreateHubModal({
             </div>
             <div className="space-y-1 text-left flex-1">
               <div className="flex items-center justify-between">
-                <h4 className="text-xs font-black text-white uppercase tracking-wider">✍ Submit Shayari</h4>
-                <span className="text-[8px] font-mono text-red-400 font-bold bg-red-950/20 border border-red-500/15 px-1.5 rounded uppercase">Public Feed</span>
+                <h4 className="text-xs font-black text-white uppercase tracking-wider">✍ Write Your Own Shayari</h4>
+                <span className="text-[8px] font-mono text-red-500 font-bold bg-red-950/20 border border-red-500/15 px-1.5 rounded uppercase font-black animate-pulse">Live Preview</span>
               </div>
               <p className="text-[10px] text-zinc-500 leading-relaxed font-mono">
-                Publish poems to our public stream and category directories. Auto category tagging & admin vetting.
+                Create & edit your own Custom Shayari with automatic word-highlights, real-time live preview, and category options.
               </p>
             </div>
           </motion.div>

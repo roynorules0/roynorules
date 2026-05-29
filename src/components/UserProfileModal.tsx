@@ -65,7 +65,7 @@ export default function UserProfileModal({
   const [savedShayaris, setSavedShayaris] = useState<Shayari[]>([]);
 
   // Active sub-tab under activity section
-  const [activeTab, setActiveTab] = useState<'uploads' | 'saved' | 'monetization'>('uploads');
+  const [activeTab, setActiveTab] = useState<'posts' | 'saved' | 'mood' | 'creations'>('posts');
 
   const isOwnProfile = currentUser?.username.toLowerCase() === username.toLowerCase();
 
@@ -230,52 +230,46 @@ export default function UserProfileModal({
         <div className={`absolute inset-0 ${currentThemeHex.bgGlow} pointer-events-none transition duration-500`} />
 
         {/* Header toolbar */}
-        <div className="flex items-center justify-between p-5 border-b border-zinc-900 shrink-0 z-10 bg-zinc-950/80 backdrop-blur-sm sticky top-0">
+        <div className="flex items-center justify-between p-4 border-b border-zinc-900 shrink-0 z-10 bg-zinc-950/80 backdrop-blur-md sticky top-0">
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.7)]" />
-            <span className="text-[10px] sm:text-xs font-mono tracking-widest uppercase text-zinc-500">
-              Identity Aura Archive // {currentThemeHex.glowLabel}
+            <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.7)]" />
+            <span className="text-xs font-mono tracking-wider uppercase text-zinc-400">
+              @{profileUser.username} // Vibe Profile
             </span>
           </div>
           <button
             onClick={onClose}
-            className="text-zinc-500 hover:text-white transition p-2 rounded-full bg-zinc-900 border border-zinc-800 cursor-pointer"
+            className="text-zinc-550 hover:text-white transition p-1.5 rounded-full bg-zinc-900/60 border border-zinc-850 cursor-pointer"
             aria-label="Close profile"
           >
-            <X size={15} />
+            <X size={14} />
           </button>
         </div>
 
         {/* Scrollable Core Content */}
         <div className="flex-1 overflow-y-auto z-10" style={{ WebkitOverflowScrolling: 'touch' }}>
           
-          {/* Cover & Hero Info */}
-          <div className="px-6 md:px-8 pt-6 select-none leading-none z-10 relative">
-            <PremiumAdContainer placement="profilePageAd" />
-          </div>
-
-          <div className="p-6 sm:p-8 flex flex-col md:flex-row gap-6 md:items-start border-b border-zinc-900 relative">
+          <div className="p-5 sm:p-6 flex flex-col sm:flex-row gap-5 items-center sm:items-start border-b border-zinc-900/60 relative">
             
             {/* Avatar block */}
-            <div className="relative shrink-0 mx-auto md:mx-0">
-              <div className={`w-24 h-24 rounded-2xl bg-zinc-900 p-[2px] border ${currentThemeHex.border} flex items-center justify-center shadow-[0_0_20px_rgba(0,0,0,0.8)]`}>
-                <div className="w-full h-full bg-zinc-950 rounded-xl flex items-center justify-center text-4xl font-extrabold text-zinc-100 uppercase tracking-tighter select-none font-mono">
+            <div className="relative shrink-0">
+              <div className={`w-20 h-20 rounded-full bg-zinc-900 p-[2px] border ${currentThemeHex.border} flex items-center justify-center shadow-lg relative overflow-hidden group`}>
+                <div className="w-full h-full bg-zinc-950 rounded-full flex items-center justify-center text-3xl font-black text-zinc-100 uppercase tracking-tighter select-none font-sans">
                   {profileUser.realName.charAt(0)}
                 </div>
               </div>
 
-              {/* Verified badge or indicator */}
               {profileUser.isVerified && (
-                <div className="absolute -bottom-1 -right-1 bg-red-600 border-2 border-zinc-950 text-white rounded-full p-1 shadow-lg" title="Roy Approved Premium Member">
-                  <ShieldCheck size={14} />
+                <div className="absolute -bottom-0.5 -right-0.5 bg-rose-600 border border-zinc-950 text-white rounded-full p-0.5 shadow-lg" title="Roy Approved Premium Member">
+                  <ShieldCheck size={12} />
                 </div>
               )}
             </div>
 
             {/* Profile Credentials */}
-            <div className="flex-1 text-center md:text-left space-y-4">
+            <div className="flex-1 text-center sm:text-left space-y-3">
               {isEditing ? (
-                <div className="space-y-3 bg-zinc-900/40 p-4 rounded-2xl border border-zinc-850">
+                <div className="space-y-3 bg-zinc-900/40 p-4 rounded-xl border border-zinc-850 text-left">
                   <div className="space-y-1">
                     <label className="text-[9px] font-mono text-zinc-400 block uppercase tracking-wider">Real Name/Crown*</label>
                     <input 
@@ -287,7 +281,7 @@ export default function UserProfileModal({
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[9px] font-mono text-zinc-400 block uppercase tracking-wider">Aura Status / Custom Bio</label>
+                    <label className="text-[9px] font-mono text-zinc-400 block uppercase tracking-wider">Vibe Status / Custom Bio</label>
                     <textarea 
                       value={editBio}
                       onChange={(e) => setEditBio(e.target.value)}
@@ -297,7 +291,7 @@ export default function UserProfileModal({
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3.5">
+                  <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <label className="text-[9px] font-mono text-zinc-400 block uppercase tracking-wider">Fav Category</label>
                       <select
@@ -344,19 +338,12 @@ export default function UserProfileModal({
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <div className="flex flex-col md:flex-row md:items-center justify-center md:justify-between gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-center sm:justify-between gap-3">
                     <div>
-                      <h1 className={`text-2xl font-black tracking-tight text-transparent bg-clip-text bg-gradient-to-r ${currentThemeHex.textGrad}`}>
-                        👑 {profileUser.realName}
+                      <h1 className={`text-xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r ${currentThemeHex.textGrad}`}>
+                        {profileUser.realName}
                       </h1>
-                      <div className="text-zinc-500 font-mono text-xs flex justify-center md:justify-start items-center gap-1.5 mt-0.5">
-                        <span>@{profileUser.username}</span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                          <Compass size={12} className="text-zinc-600" />
-                          Preferred: {profileUser.favoriteCategory || 'Motivation'}
-                        </span>
-                      </div>
+                      <p className="text-zinc-500 font-mono text-xs mt-0.5">@{profileUser.username}</p>
                     </div>
 
                     {/* Follow or Edit Action Button */}
@@ -364,93 +351,63 @@ export default function UserProfileModal({
                       {isOwnProfile ? (
                         <button
                           onClick={() => setIsEditing(true)}
-                          className="px-4 py-1.5 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white rounded-xl text-xs font-mono font-medium tracking-wide flex items-center gap-1.5 cursor-pointer transition select-none"
+                          className="px-3 py-1 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-zinc-700 text-zinc-350 hover:text-white rounded-xl text-xs font-mono flex items-center gap-1 transition select-none"
                         >
-                          <Edit3 size={12} />
-                          <span>Customize Aura</span>
+                          <Edit3 size={11} />
+                          <span>Edit Profile</span>
                         </button>
                       ) : (
                         <button
                           onClick={handleFollowClick}
-                          className={`px-4 py-1.5 rounded-xl text-xs font-mono font-bold tracking-wide transition flex items-center gap-1.5 select-none cursor-pointer ${
+                          className={`px-3 py-1 rounded-xl text-xs font-mono font-bold transition flex items-center gap-1.5 select-none cursor-pointer ${
                             isFollowing 
                               ? 'bg-zinc-900 border border-zinc-850 text-zinc-400 hover:text-red-400' 
                               : 'bg-gradient-to-r from-red-600 to-rose-700 text-white'
                           }`}
                         >
-                          <Users size={12} />
-                          <span>{isFollowing ? 'Following ✓' : 'Link Connection'}</span>
+                          <Users size={11} />
+                          <span>{isFollowing ? 'Following ✓' : 'Connect'}</span>
                         </button>
                       )}
                     </div>
                   </div>
 
-                  <p className="text-sm text-zinc-300 max-w-md mx-auto md:mx-0 leading-relaxed italic text-left select-text whitespace-pre-wrap">
+                  {/* Aesthetic Category Badge and Bio */}
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 pt-1 font-mono">
+                    <span className="px-2 py-0.5 bg-rose-500/10 border border-rose-500/20 text-rose-350 text-[10px] rounded-full flex items-center gap-1 font-medium">
+                      <Compass size={11} /> {profileUser.favoriteCategory || 'Motivation'}
+                    </span>
+                    <span className="text-[10px] text-zinc-650">
+                      Joined: {new Date(profileUser.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })}
+                    </span>
+                  </div>
+
+                  <p className="text-sm text-zinc-300 leading-relaxed font-sans font-light italic text-center sm:text-left select-text whitespace-pre-wrap max-w-xl">
                     "{profileUser.bio || 'Wandering through life with zero boundaries, in search of raw attitude verses.'}"
                   </p>
 
-                  {/* Joined Date */}
-                  <div className="flex items-center justify-center md:justify-start gap-1.5 text-zinc-600 text-[10px] font-mono">
-                    <Calendar size={11} />
-                    <span>Resident Since: {new Date(profileUser.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                  {/* Compact Instagram-style Social Stats Counters */}
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-5 py-2 text-xs font-mono border-t border-zinc-900/40 mt-3 select-none">
+                    <div className="flex gap-1">
+                      <span className="text-zinc-200 font-bold">{uploads.approved.length}</span>
+                      <span className="text-zinc-500 uppercase text-[10px] tracking-wider">Posts</span>
+                    </div>
+                    <div className="flex gap-1">
+                      <span className="text-zinc-200 font-bold">{profileUser.followerStrings?.length || 0}</span>
+                      <span className="text-zinc-500 uppercase text-[10px] tracking-wider">Followers</span>
+                    </div>
+                    <div className="flex gap-1">
+                      <span className="text-zinc-200 font-bold">{profileUser.followingStrings?.length || 0}</span>
+                      <span className="text-zinc-500 uppercase text-[10px] tracking-wider">Following</span>
+                    </div>
+                    <div className="flex gap-1" title="Likes received across posts">
+                      <span className="text-zinc-255 font-bold">{likesCount}</span>
+                      <span className="text-zinc-500 uppercase text-[10px] tracking-wider">Fire-Rates</span>
+                    </div>
                   </div>
+
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* Statistics Grid */}
-          <div className="p-6 sm:p-8 bg-zinc-950/60 border-b border-zinc-900 select-none">
-            <h3 className="text-[10px] font-mono tracking-widest uppercase text-zinc-500 mb-4 text-left">
-              Social Statistics Matrix
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              
-              {/* Community Rank */}
-              <div className="bg-zinc-900/30 border border-zinc-900 p-4 rounded-2xl flex flex-col justify-between hover:border-zinc-800 transition">
-                <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Global Rank</span>
-                <span className="text-xl font-black mt-2 text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-yellow-500">
-                  #{communityRank}
-                </span>
-                <span className="text-[8px] font-mono text-zinc-600 mt-1 uppercase">by Active Score</span>
-              </div>
-
-              {/* Total Uploads */}
-              <div className="bg-zinc-900/30 border border-zinc-900 p-4 rounded-2xl flex flex-col justify-between hover:border-zinc-800 transition">
-                <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Sent Shayaris</span>
-                <span className="text-xl font-black text-rose-500 mt-2">
-                  {uploads.approved.length + uploads.pending.length}
-                </span>
-                <span className="text-[8px] font-mono text-zinc-600 mt-1 uppercase">
-                  {uploads.pending.length > 0 ? `${uploads.approved.length} Live / ${uploads.pending.length} Pend` : 'Posted Verses'}
-                </span>
-              </div>
-
-              {/* Total Likes Received */}
-              <div className="bg-zinc-900/30 border border-zinc-900 p-4 rounded-2xl flex flex-col justify-between hover:border-zinc-800 transition">
-                <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Net Fire Rates</span>
-                <span className="text-xl font-black mt-2 text-transparent bg-clip-text bg-gradient-to-r from-red-500 to-rose-500Icon">
-                  {likesCount} 🔥
-                </span>
-                <span className="text-[8px] font-mono text-zinc-600 mt-1 uppercase">Likes Earned</span>
-              </div>
-
-            </div>
-
-            {/* Followers Group counter */}
-            <div className="flex gap-6 mt-4 pt-4 border-t border-zinc-900/50 justify-center md:justify-start">
-              <div className="flex gap-1.5 items-center font-mono text-xs text-zinc-400">
-                <span className="font-bold text-white text-sm">{profileUser.followerStrings?.length || 0}</span>
-                <span className="text-zinc-600 uppercase text-[10px]">Followers</span>
-              </div>
-              <div className="flex gap-1.5 items-center font-mono text-xs text-zinc-400">
-                <span className="font-bold text-white text-sm">{profileUser.followingStrings?.length || 0}</span>
-                <span className="text-zinc-600 uppercase text-[10px]">Following</span>
-              </div>
-              <div className="flex gap-1.5 items-center font-mono text-xs text-zinc-400">
-                <span className="font-bold text-white text-sm">{(profileUser.activityCount || 0)}</span>
-                <span className="text-zinc-600 uppercase text-[10px]">Activity Score</span>
-              </div>
             </div>
           </div>
 
@@ -481,38 +438,42 @@ export default function UserProfileModal({
           </div>
 
           {/* Profile Interactive Tabs for uploads and logs */}
-          <div className="flex border-b border-zinc-900 relative bg-zinc-900/10 shrink-0 sticky top-[69px] z-15 backdrop-blur-sm">
+          <div className="flex border-b border-zinc-900 relative bg-zinc-900/10 shrink-0 sticky top-0 sm:top-[61px] z-15 backdrop-blur-sm">
             <button
-              onClick={() => setActiveTab('uploads')}
-              className={`flex-1 py-4 text-xs font-mono tracking-wider text-center flex items-center justify-center gap-1.5 transition ${
-                activeTab === 'uploads' ? 'text-red-500 bg-zinc-900/40 font-bold border-b-2 border-red-500/80' : 'text-zinc-500 hover:text-zinc-300'
+              onClick={() => setActiveTab('posts')}
+              className={`flex-1 py-3 text-xs font-mono tracking-wider text-center flex items-center justify-center gap-1.5 transition ${
+                activeTab === 'posts' ? 'text-rose-500 bg-zinc-905/30 font-bold border-b-2 border-rose-500' : 'text-zinc-550 hover:text-zinc-350'
               }`}
             >
-              <FileText size={13} />
-              <span className="hidden sm:inline">User Uploads ({uploads.approved.length + uploads.pending.length})</span>
-              <span className="sm:hidden">Uploads ({uploads.approved.length + uploads.pending.length})</span>
+              <FileText size={12} />
+              <span>Shayari ({uploads.approved.length})</span>
             </button>
-            {isOwnProfile && (
-              <button
-                onClick={() => setActiveTab('saved')}
-                className={`flex-1 py-4 text-xs font-mono tracking-wider text-center flex items-center justify-center gap-1.5 transition ${
-                  activeTab === 'saved' ? 'text-red-500 bg-zinc-900/40 font-bold border-b-2 border-red-500/80' : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-              >
-                <Bookmark size={13} />
-                <span className="hidden sm:inline">My Vault ({savedShayaris.length})</span>
-                <span className="sm:hidden">Vault ({savedShayaris.length})</span>
-              </button>
-            )}
             <button
-              onClick={() => setActiveTab('monetization')}
-              className={`flex-1 py-4 text-xs font-mono tracking-wider text-center flex items-center justify-center gap-1.5 transition ${
-                activeTab === 'monetization' ? 'text-red-500 bg-zinc-900/40 font-bold border-b-2 border-red-500/80' : 'text-zinc-500 hover:text-zinc-300'
+              onClick={() => setActiveTab('saved')}
+              className={`flex-1 py-3 text-xs font-mono tracking-wider text-center flex items-center justify-center gap-1.5 transition ${
+                activeTab === 'saved' ? 'text-rose-500 bg-zinc-905/30 font-bold border-b-2 border-rose-500' : 'text-zinc-550 hover:text-zinc-350'
               }`}
             >
-              <Coins size={13} />
-              <span className="hidden sm:inline">Creator Earnings 🪙</span>
-              <span className="sm:hidden">Earnings 🪙</span>
+              <Bookmark size={12} />
+              <span>Saved ({savedShayaris.length})</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('mood')}
+              className={`flex-1 py-3 text-xs font-mono tracking-wider text-center flex items-center justify-center gap-1.5 transition ${
+                activeTab === 'mood' ? 'text-rose-500 bg-zinc-905/30 font-bold border-b-2 border-rose-500' : 'text-zinc-550 hover:text-zinc-350'
+              }`}
+            >
+              <Compass size={12} />
+              <span>Moods</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('creations')}
+              className={`flex-1 py-3 text-xs font-mono tracking-wider text-center flex items-center justify-center gap-1.5 transition ${
+                activeTab === 'creations' ? 'text-rose-500 bg-zinc-905/30 font-bold border-b-2 border-rose-500' : 'text-zinc-550 hover:text-zinc-350'
+              }`}
+            >
+              <Sparkles size={12} />
+              <span>Creations</span>
             </button>
           </div>
 

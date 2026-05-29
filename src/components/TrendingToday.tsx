@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Flame, Heart, TrendingUp, Moon, Eye, Share2, Sparkles } from 'lucide-react';
 import { Shayari } from '../types';
+import { generateShayariSlug } from '../utils/seo';
 
 interface TrendingTodayProps {
   approvedShayaris: Shayari[];
@@ -97,7 +98,7 @@ export default function TrendingToday({ approvedShayaris, onSelectShayari, showT
               onClick={() => {
                 onSelectShayari(sh);
                 // Also update browser URL
-                const slugPath = sh.slug || `${sh.category.toLowerCase()}/vibe-${sh.id}`;
+                const slugPath = generateShayariSlug(sh);
                 window.history.pushState(null, '', `/${slugPath}`);
                 window.dispatchEvent(new Event('popstate'));
               }}
