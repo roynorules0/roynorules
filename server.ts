@@ -469,7 +469,35 @@ function buildSimpleSlug(category: string, text: string, id: string): string {
   return `${cleanCat}/${finalPart}-${id}`;
 }
 
+// Enforce application/json for all API endpoints
+app.use('/api', (req, res, next) => {
+  res.setHeader('Content-Type', 'application/json');
+  next();
+});
+
 // API Routes
+app.get('/api/health-check', (req, res) => {
+  res.json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    database: {
+      approved_count: db.approved ? db.approved.length : 0,
+      pending_count: db.pending ? db.pending.length : 0,
+      categories_count: db.categories ? db.categories.length : 0
+    },
+    telegram: {
+      configured: !!(db.telegramConfig?.botToken),
+      enabled: !!(db.telegramConfig?.enabled),
+      chatId: db.telegramConfig?.chatId || 'not_configured'
+    },
+    environment: {
+      node_env: process.env.NODE_ENV || 'production',
+      platform: 'Cloud Run'
+    }
+  });
+});
+
 app.get('/api/community-db', (req, res) => {
   res.json({
     approved: db.approved,
@@ -837,6 +865,16 @@ app.post('/api/add-official-shayari', (req, res) => {
   res.status(201).json({ success: true, shayari: officialShayari });
 });
 
+// Global API error handling middleware to guarantee API routes always return application/json
+app.use('/api', (err: any, req: any, res: any, next: any) => {
+  console.error('[API Error Intercepted]:', err);
+  res.status(err.status || 500).json({
+    success: false,
+    error: err.message || 'Internal Server Error detected on RoyVerse API.',
+    code: err.code || 'INTERNAL_ERROR'
+  });
+});
+
 // Dynamic robots.txt
 app.get('/robots.txt', (req, res) => {
   const origin = 'https://royversehub.netlify.app';
@@ -1123,7 +1161,7 @@ function generateSeoHtml(template: string, requestPath: string, host: string, pr
     <meta property="og:description" content="${description.replace(/"/g, '&quot;')}" />
     <meta property="og:url" content="${canonical}" />
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Roy No Rules..." />
+    <meta property="og:site_name" content="RoyVerse Hub" />
     <meta name="twitter:title" content="${title.replace(/"/g, '&quot;')}" />
     <meta name="twitter:description" content="${description.replace(/"/g, '&quot;')}" />
   `;

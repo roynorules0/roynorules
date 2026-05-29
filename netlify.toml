@@ -1,0 +1,16 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Proxy API routes directly to the Cloud Run server backend
+[[redirects]]
+  from = "/api/*"
+  to = "https://ais-pre-dorxg2lv2rgwjbx4kk26ao-444517033714.asia-southeast1.run.app/api/:splat"
+  status = 200
+  force = true
+
+# Fallback all other routes to index.html for Single Page Application
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

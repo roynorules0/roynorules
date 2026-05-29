@@ -188,7 +188,8 @@ export default function MoreMenuModal({
                 { path: '/dmca-policy', label: 'DMCA Policy', icon: '🚀' },
                 { path: '/community-guidelines', label: 'Community Rules', icon: '🤝' },
                 { path: '/content-moderation', label: 'Moderation Policy', icon: '🛡️' },
-                { path: '/data-deletion', label: 'Data Deletion', icon: '🗑' }
+                { path: '/data-deletion', label: 'Data Deletion', icon: '🗑' },
+                { path: '/api-diagnostics', label: 'System Status', icon: '⚡' }
               ].map((item) => (
                 <button
                   key={item.path}

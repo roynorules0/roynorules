@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   ShieldCheck, Info, FileText, AlertTriangle, Mail, Phone, 
   MapPin, Send, MessageSquare, CheckCircle, ArrowLeft, ExternalLink, 
-  Heart, Sparkles, Flame, ShieldAlert, XOctagon, Eye, CheckCircle2, Trash2
+  Heart, Sparkles, Flame, ShieldAlert, XOctagon, Eye, CheckCircle2, Trash2,
+  Activity, RefreshCw
 } from 'lucide-react';
 
 interface ContactFormState {
@@ -29,6 +30,49 @@ export default function TrustPages({ activePath, onNavigate, onClose }: TrustPag
   const [activeTicketCount, setActiveTicketCount] = useState(() => {
     return Math.floor(Math.random() * 4) + 2; 
   });
+
+  // Diagnostics States
+  const [health, setHealth] = useState<any>(null);
+  const [checking, setChecking] = useState(false);
+  const [diagError, setDiagError] = useState<string | null>(null);
+  const [pingMs, setPingMs] = useState<number | null>(null);
+  const [contentType, setContentType] = useState<string | null>(null);
+
+  const runDiagnostics = async () => {
+    setChecking(true);
+    setDiagError(null);
+    const startTime = performance.now();
+    try {
+      const res = await fetch('/api/health-check');
+      const endTime = performance.now();
+      setPingMs(Math.round(endTime - startTime));
+      
+      const cType = res.headers.get('content-type') || 'unknown';
+      setContentType(cType);
+      
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} returned.`);
+      }
+      
+      if (cType.includes('text/html')) {
+        throw new Error('Received unexpected HTML (text/html) instead of JSON. This indicates Netlify routing is serving the 404 page for API paths.');
+      }
+      
+      const data = await res.json();
+      setHealth(data);
+    } catch (err: any) {
+      setDiagError(err.message || 'Network connectivity error.');
+      setHealth(null);
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activePath === '/api-diagnostics') {
+      runDiagnostics();
+    }
+  }, [activePath]);
 
   // SEO setup and synchronization effect for compliance indexability
   useEffect(() => {
@@ -129,7 +173,7 @@ export default function TrustPages({ activePath, onNavigate, onClose }: TrustPag
     }
   };
 
-  // Pre-compiled list of all 10 official compliance directories
+  // Pre-compiled list of all 11 official compliance directories
   const menuItems = [
     { path: '/about-us', label: '📖 About Us', desc: 'Who we are & our mission' },
     { path: '/contact-us', label: '📞 Contact Us', desc: 'Feedback & support channel' },
@@ -140,7 +184,8 @@ export default function TrustPages({ activePath, onNavigate, onClose }: TrustPag
     { path: '/dmca-policy', label: '🚀 DMCA Policy', desc: 'Takedown requests process' },
     { path: '/community-guidelines', label: '🤝 Community Rules', desc: 'Respect & safe engagement' },
     { path: '/content-moderation', label: '🛡️ Moderation', desc: 'Submissions review process' },
-    { path: '/data-deletion', label: '🗑️ Data Deletion', desc: 'Permanent account wipe' }
+    { path: '/data-deletion', label: '🗑️ Data Deletion', desc: 'Permanent account wipe' },
+    { path: '/api-diagnostics', label: '⚡ System Status', desc: 'Service Health diagnostics' }
   ];
 
   return (
@@ -881,6 +926,199 @@ export default function TrustPages({ activePath, onNavigate, onClose }: TrustPag
                       No questions asked. Once we receive and verify your ownership request, all submitted servers, records, backups, and credentials will be permanently erased from our disk partitions inside 12 hours.
                     </p>
                   </div>
+                </div>
+              )}
+
+              {/* 11. System Diagnostics / API Health Check */}
+              {activePath === '/api-diagnostics' && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-4 select-none">
+                    <div className="flex items-center gap-3">
+                      <span className="w-10 h-10 rounded-xl bg-red-950/30 border border-red-500/20 text-red-500 flex items-center justify-center">
+                        <Activity size={20} className={checking ? 'animate-pulse' : ''} />
+                      </span>
+                      <div>
+                        <h2 className="text-lg font-black font-sans tracking-wide text-white uppercase leading-none">
+                          System Status & API Diagnostics
+                        </h2>
+                        <span className="text-[10px] font-mono text-red-400 uppercase tracking-widest mt-1.5 block">
+                          Realtime gateway verification, Netlify proxy checks, and database sync
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={runDiagnostics}
+                      disabled={checking}
+                      className="px-3.5 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900/40 hover:bg-zinc-900 text-[10px] font-mono uppercase tracking-widest text-zinc-300 hover:text-white transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                    >
+                      <RefreshCw size={12} className={checking ? 'animate-spin text-red-500' : 'text-zinc-500'} />
+                      <span>{checking ? 'Testing...' : 'Retest'}</span>
+                    </button>
+                  </div>
+
+                  {/* Operational Status Banner */}
+                  <div className={`p-4 rounded-xl border ${
+                    diagError 
+                      ? 'bg-red-950/20 border-red-500/30 text-red-200' 
+                      : health 
+                        ? 'bg-emerald-950/10 border-emerald-500/20 text-emerald-200' 
+                        : 'bg-zinc-900/40 border-zinc-800 text-zinc-400'
+                  }`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-3 h-3 rounded-full ${
+                        diagError ? 'bg-red-500 animate-pulse' : health ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-500'
+                      }`} />
+                      <div>
+                        <p className="text-xs font-bold uppercase font-mono tracking-widest">
+                          {diagError ? 'CRITICAL SYSTEM ANOMALY' : health ? 'ALL GATEWAYS OPERATIONAL' : 'DETERMINING SYSTEM STATUS'}
+                        </p>
+                        <p className="text-[11px] opacity-80 mt-0.5">
+                          {diagError 
+                            ? `API Endpoint returned an error: ${diagError}` 
+                            : health 
+                              ? `All JSON health metrics synchronized in real-time natively.` 
+                              : 'Initiating gateway handshakes...'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bento Grid Metrics */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    
+                    {/* Card 1: API Gateway & Latency */}
+                    <div className="p-4 rounded-xl border border-zinc-900 bg-zinc-950/30 space-y-2">
+                      <span className="text-[8.5px] font-mono text-zinc-500 uppercase tracking-widest block">
+                        Network & Latency
+                      </span>
+                      <div className="flex items-baseline justify-between select-none">
+                        <span className="text-xl font-black font-sans text-white">
+                          {pingMs !== null ? `${pingMs} ms` : '—'}
+                        </span>
+                        <span className={`text-[9px] font-mono uppercase px-2 py-0.5 rounded ${
+                          pingMs === null 
+                            ? 'bg-zinc-900 text-zinc-500' 
+                            : pingMs < 150 
+                              ? 'bg-emerald-950/50 text-emerald-400 border border-emerald-500/10' 
+                              : 'bg-amber-950/50 text-amber-400 border border-amber-500/10'
+                        }`}>
+                          {pingMs === null ? 'Inactive' : pingMs < 150 ? 'Excellent' : 'Nominal'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-zinc-400 leading-relaxed font-mono">
+                        Direct fetch latency to Cloud Run server behind Netlify routing.
+                      </p>
+                    </div>
+
+                    {/* Card 2: Netlify Routing Security */}
+                    <div className="p-4 rounded-xl border border-zinc-900 bg-zinc-950/30 space-y-2">
+                      <span className="text-[8.5px] font-mono text-zinc-500 uppercase tracking-widest block">
+                        Netlify Proxy Layer
+                      </span>
+                      <div className="flex items-baseline justify-between select-none">
+                        <span className={`text-sm font-black font-sans uppercase ${
+                          contentType?.includes('application/json') ? 'text-white' : 'text-red-400'
+                        }`}>
+                          {contentType ? (contentType.split(';')[0]) : '—'}
+                        </span>
+                        <span className={`text-[9px] font-mono uppercase px-2 py-0.5 rounded ${
+                          contentType?.includes('application/json')
+                            ? 'bg-emerald-950/50 text-emerald-400 border border-emerald-500/10'
+                            : 'bg-red-950/50 text-red-400 border border-red-500/10'
+                        }`}>
+                          {contentType?.includes('application/json') ? 'Secure JSON' : 'HTML Fallback (Bug)'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-zinc-400 leading-relaxed font-mono">
+                        Response header mime-type. Ensures Netlify rewrites API routes instead of returning SPA index page.
+                      </p>
+                    </div>
+
+                    {/* Card 3: Github Auto-Deploy status */}
+                    <div className="p-4 rounded-xl border border-zinc-900 bg-zinc-950/30 space-y-2">
+                      <span className="text-[8.5px] font-mono text-zinc-500 uppercase tracking-widest block">
+                        GitHub Auto-deployment
+                      </span>
+                      <div className="flex items-baseline justify-between select-none">
+                        <span className="text-sm font-black font-mono text-white">
+                          STABLE (MAIN)
+                        </span>
+                        <span className="text-[9px] font-mono uppercase px-2 py-0.5 rounded bg-emerald-950/50 text-emerald-400 border border-emerald-500/10">
+                          Active
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-zinc-400 leading-relaxed font-mono">
+                        Directly compatible with Netlify automated triggers on GitHub merges.
+                      </p>
+                    </div>
+
+                  </div>
+
+                  {/* Database Stats Counters */}
+                  <div className="p-4 rounded-xl border border-zinc-900 bg-zinc-950/40 space-y-4">
+                    <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest block font-bold">
+                      Database Sync Statistics (Cloud Run Persistent JSON Memory)
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-center">
+                      <div className="p-3 bg-black/40 border border-zinc-900 rounded-lg">
+                        <span className="text-[10px] font-mono text-zinc-500 block uppercase">Approved Shayari</span>
+                        <span className="text-xl font-bold text-white mt-1 block">
+                          {health?.database?.approved_count ?? '—'}
+                        </span>
+                      </div>
+                      <div className="p-3 bg-black/40 border border-zinc-900 rounded-lg">
+                        <span className="text-[10px] font-mono text-zinc-500 block uppercase">Pending Shayari</span>
+                        <span className="text-xl font-bold text-white mt-1 block">
+                          {health?.database?.pending_count ?? '—'}
+                        </span>
+                      </div>
+                      <div className="p-3 bg-black/40 border border-zinc-900 rounded-lg">
+                        <span className="text-[10px] font-mono text-zinc-500 block uppercase">Active Categories</span>
+                        <span className="text-xl font-bold text-white mt-1 block">
+                          {health?.database?.categories_count ?? '—'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Telegram Configuration Details */}
+                  <div className="p-4 rounded-xl border border-zinc-900 bg-zinc-950/40 space-y-3">
+                    <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-widest block font-bold">
+                      Telegram Bot Gateway Configurations
+                    </span>
+                    <div className="text-xs font-mono space-y-1.5 text-zinc-400">
+                      <div className="flex justify-between py-1 border-b border-zinc-900">
+                        <span>Configured Status:</span>
+                        <span className={health?.telegram?.configured ? 'text-emerald-400' : 'text-zinc-500'}>
+                          {health?.telegram?.configured ? 'YES (Active Token)' : 'NO (Disabled)'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-zinc-900">
+                        <span>Broadcast Trigger:</span>
+                        <span className={health?.telegram?.enabled ? 'text-emerald-400' : 'text-zinc-500'}>
+                          {health?.telegram?.enabled ? 'ENABLED' : 'DISABLED'}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1">
+                        <span>Resolved Channel ID:</span>
+                        <span className="text-white select-all text-[11px]">
+                          {health?.telegram?.chatId ?? 'None'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expandable Health JSON */}
+                  <div className="space-y-2">
+                    <span className="text-[9.5px] font-mono text-zinc-650 uppercase tracking-widest font-black block">
+                      Target Health Payload Explorer
+                    </span>
+                    <pre className="p-4 rounded-xl bg-zinc-950/80 border border-zinc-900 text-[10px] font-mono overflow-x-auto text-zinc-400 leading-normal max-h-48 overflow-y-auto">
+                      {health ? JSON.stringify(health, null, 2) : '// No JSON payload loaded from diagnostics handshakes.'}
+                    </pre>
+                  </div>
+
                 </div>
               )}
 

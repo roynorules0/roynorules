@@ -64,7 +64,8 @@ export default function App() {
   const [currentTrustPath, setCurrentTrustPath] = useState<string | null>(() => {
     const paths = [
       '/about-us', '/privacy-policy', '/terms-and-conditions', '/disclaimer', '/contact-us',
-      '/cookie-policy', '/dmca-policy', '/community-guidelines', '/content-moderation', '/data-deletion'
+      '/cookie-policy', '/dmca-policy', '/community-guidelines', '/content-moderation', '/data-deletion',
+      '/api-diagnostics'
     ];
     return paths.includes(window.location.pathname) ? window.location.pathname : null;
   });
@@ -425,6 +426,10 @@ export default function App() {
           title = 'Data Deletion Policy | RoyVerse Hub';
           description = 'Request secure, permanent removal of your account, content, and personal files on RoyVerse Hub.';
           break;
+        case '/api-diagnostics':
+          title = 'System Diagnostics & API Status | RoyVerse Hub';
+          description = 'Real-time service health, network latency, database synchrony, and Netlify gateway checks for RoyVerse Hub.';
+          break;
         case '/contact-us':
           title = 'Contact Us | RoyVerse Hub';
           description = 'Get in touch with RoyVerse Hub directly at roynoruless@gmail.com or join our official Telegram channel.';
@@ -519,7 +524,8 @@ export default function App() {
 
       const trustPaths = [
         '/about-us', '/privacy-policy', '/terms-and-conditions', '/disclaimer', '/contact-us',
-        '/cookie-policy', '/dmca-policy', '/community-guidelines', '/content-moderation', '/data-deletion'
+        '/cookie-policy', '/dmca-policy', '/community-guidelines', '/content-moderation', '/data-deletion',
+        '/api-diagnostics'
       ];
       
       const matchedEq = emotionalQuestionPages.find(eq => '/' + eq.slug === path);
@@ -1551,7 +1557,8 @@ export default function App() {
               { path: '/dmca-policy', label: 'DMCA Policy' },
               { path: '/community-guidelines', label: 'Community Guidelines' },
               { path: '/content-moderation', label: 'Moderation Policy' },
-              { path: '/data-deletion', label: 'Data Deletion' }
+              { path: '/data-deletion', label: 'Data Deletion' },
+              { path: '/api-diagnostics', label: 'System Status' }
             ].map((lnk) => (
               <button
                 key={lnk.path}
