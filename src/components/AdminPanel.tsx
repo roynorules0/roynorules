@@ -142,14 +142,23 @@ export default function AdminPanel({
     setIsTelegramLoading(true);
     try {
       const res = await fetch('/api/telegram-config');
-      if (res.ok) {
-        const data = await res.json();
-        setTelegramToken(data.botToken || '');
-        setTelegramChatId(data.chatId || '');
-        setTelegramEnabled(!!data.enabled);
-        setTelegramLogs(data.logs || []);
-        setHasSavedToken(data.hasToken || false);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `HTTP ${res.status}`);
       }
+      
+      const contentType = res.headers.get('content-type');
+      if (contentType && !contentType.includes('application/json')) {
+        const bodyText = await res.text();
+        throw new Error(`Expected JSON but received ${contentType}`);
+      }
+
+      const data = await res.json();
+      setTelegramToken(data.botToken || '');
+      setTelegramChatId(data.chatId || '');
+      setTelegramEnabled(!!data.enabled);
+      setTelegramLogs(data.logs || []);
+      setHasSavedToken(data.hasToken || false);
     } catch (err) {
       console.error('Error fetching telegram config:', err);
     } finally {
@@ -176,14 +185,21 @@ export default function AdminPanel({
           enabled: telegramEnabled
         })
       });
-      const data = await res.json();
-      if (res.ok) {
-        setSaveResult(data);
-        alert('📢 Telegram configuration successfully saved & verified!');
-        fetchTelegramConfig();
-      } else {
-        alert('❌ Failed to save Telegram configuration.');
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `HTTP ${res.status}`);
       }
+
+      const contentType = res.headers.get('content-type');
+      if (contentType && !contentType.includes('application/json')) {
+        const bodyText = await res.text();
+        throw new Error(`Expected JSON but received ${contentType}`);
+      }
+
+      const data = await res.json();
+      setSaveResult(data);
+      alert('📢 Telegram configuration successfully saved & verified!');
+      fetchTelegramConfig();
     } catch (err: any) {
       alert('❌ Error saving configuration: ' + err?.message);
     } finally {
@@ -203,8 +219,19 @@ export default function AdminPanel({
           chatId: telegramChatId
         })
       });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+
+      const contentType = res.headers.get('content-type');
+      if (contentType && !contentType.includes('application/json')) {
+        const bodyText = await res.text();
+        throw new Error(`Expected JSON but received ${contentType}`);
+      }
+
       const data = await res.json();
-      if (res.ok && data.success) {
+      if (data.success) {
         alert(`✅ Test Message Broadcasted Successfully!\n\nDetails:\nChannel Name: ${data.chat?.title || telegramChatId}\nResolved Unique ID: ${data.chat?.id || 'N/A'}\nYour Telegram Automation link has been loaded and locked in!`);
         fetchTelegramConfig();
       } else {
@@ -232,8 +259,19 @@ export default function AdminPanel({
           chatId: telegramChatId
         })
       });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `HTTP ${res.status}`);
+      }
+
+      const contentType = res.headers.get('content-type');
+      if (contentType && !contentType.includes('application/json')) {
+        const bodyText = await res.text();
+        throw new Error(`Expected JSON but received ${contentType}`);
+      }
+
       const data = await res.json();
-      if (res.ok && data.success) {
+      if (data.success) {
         setVerifiedChannelResult(data.chat);
         alert(`✅ Channel Verified Successfully!\n\nResolved Title: ${data.chat.title || 'No Title'}\nID: ${data.chat.id}\nUsername: ${data.chat.username ? '@' + data.chat.username : 'N/A'}`);
       } else {
