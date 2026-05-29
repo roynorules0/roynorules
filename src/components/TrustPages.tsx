@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   ShieldCheck, Info, FileText, AlertTriangle, Mail, Phone, 
-  MapPin, Send, MessageSquare, CheckCircle, ArrowLeft, ExternalLink, ShieldCheck as VerifiedIcon, Heart, Sparkles, Flame
+  MapPin, Send, MessageSquare, CheckCircle, ArrowLeft, ExternalLink, 
+  Heart, Sparkles, Flame, ShieldAlert, XOctagon, Eye, CheckCircle2, Trash2
 } from 'lucide-react';
 
 interface ContactFormState {
@@ -13,53 +14,73 @@ interface ContactFormState {
 }
 
 interface TrustPagesProps {
-  activePath: string; // e.g. '/about-us', '/privacy-policy', '/terms-and-conditions', '/disclaimer', '/contact-us'
+  activePath: string; // e.g. '/about-us', '/privacy-policy', '/terms-and-conditions', ...
   onNavigate: (path: string) => void;
   onClose: () => void;
 }
 
 export default function TrustPages({ activePath, onNavigate, onClose }: TrustPagesProps) {
-  const [form, setForm] = useState<ContactFormState>({ name: '', email: '', subject: 'Shayari Upload/Inquiry', message: '' });
+  const [form, setForm] = useState<ContactFormState>({ name: '', email: '', subject: 'Inquiry', message: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   
-  // Custom states for contact support ticket log
+  // Custom states for active support ticket simulation (real-time look & feel)
   const [activeTicketCount, setActiveTicketCount] = useState(() => {
-    return Math.floor(Math.random() * 5) + 2; 
+    return Math.floor(Math.random() * 4) + 2; 
   });
 
-  // SEO setup and synchronization effect
+  // SEO setup and synchronization effect for compliance indexability
   useEffect(() => {
-    let seoTitle = 'Roy No Rules...';
-    let seoDesc = 'Discover premium Hinglish emotional shayari, motivation, status customizer and creative rules.';
+    let seoTitle = 'RoyVerse Hub';
+    let seoDesc = 'Discover premium Hinglish emotional shayari, motivation, status customizer, and creative rules on RoyVerse Hub.';
     
     switch (activePath) {
       case '/about-us':
-        seoTitle = 'About Our Sanctuary - Roy No Rules...';
-        seoDesc = 'Who we are. Behind the shayari sanctuary, emotional dark-cyberpunk aesthetics, free recitation player, and midnight rebellion.';
+        seoTitle = 'About Us | RoyVerse Hub';
+        seoDesc = 'Who we are. Behind RoyVerse Hub—a premier community platform for user-generated shayari and motivational content founded by Ritik Rai.';
         break;
       case '/privacy-policy':
-        seoTitle = 'Privacy Safeguards & Consent - Roy No Rules...';
-        seoDesc = 'Full transparency on secure SHA-256 local-first client states, future AdSense cookie guidelines, and zero-selling policies.';
+        seoTitle = 'Privacy Policy | RoyVerse Hub';
+        seoDesc = 'Full details on user data protections, localStorage configuration, Google Analytics tracking, and future Google AdSense guidelines.';
         break;
       case '/terms-and-conditions':
-        seoTitle = 'Terms of Human Conduct - Roy No Rules...';
-        seoDesc = 'Respectful engagement guidelines, copyright claims handling, creative standards, anti-abuse regulations, and moderator policies.';
+        seoTitle = 'Terms & Conditions | RoyVerse Hub';
+        seoDesc = 'Respectful engagement, content ownership licensing, anti-abuse policies, and publisher conditions on RoyVerse Hub.';
         break;
       case '/disclaimer':
-        seoTitle = 'Creative & Ownership Disclaimers - Roy No Rules...';
-        seoDesc = 'Ownership terms of emotional, motivational, and fan-made cultural shayari. Take-down policy guidelines.';
+        seoTitle = 'Artistic & Content Disclaimer | RoyVerse Hub';
+        seoDesc = 'Artistic ownership disclosures regarding user-generated content, copyright protections, and third-party links validation.';
+        break;
+      case '/cookie-policy':
+        seoTitle = 'Cookie Policy | RoyVerse Hub';
+        seoDesc = 'Comprehensive information explaining essential, analytical, and future targeted Google AdSense advertising cookies on RoyVerse Hub.';
+        break;
+      case '/dmca-policy':
+        seoTitle = 'DMCA Copyright Take-down Policy | RoyVerse Hub';
+        seoDesc = 'Copyright claim processing, notice guidelines, and rapid material removal workflow on RoyVerse Hub.';
+        break;
+      case '/community-guidelines':
+        seoTitle = 'Community Guidelines | RoyVerse Hub';
+        seoDesc = 'Understand our core code of behavior. Mutual respect pacts, anti-spam clauses, and plagiarism mitigation rules.';
+        break;
+      case '/content-moderation':
+        seoTitle = 'Content Moderation Standards | RoyVerse Hub';
+        seoDesc = 'How submissions get vetted. Insight into our poetic reviews, rejection criteria, and manual editing pipelines.';
+        break;
+      case '/data-deletion':
+        seoTitle = 'Data Deletion Rights | RoyVerse Hub';
+        seoDesc = 'Your data, your control. Learn how to wipe custom favorites, delete client registries, or request form clean-ups.';
         break;
       case '/contact-us':
-        seoTitle = 'Connect With Us Directly - Roy No Rules...';
-        seoDesc = 'Need a personal touch? Ring us at +91 9027671630 or write to roynoruless@gmail.com for fast support.';
+        seoTitle = 'Connect With Us | RoyVerse Hub';
+        seoDesc = 'Need directly personalized reach and support? Drop an email with us at roynoruless@gmail.com or join the official Telegram channel.';
         break;
     }
 
-    document.title = seoTitle + ' | ⚡ Roy No Rules... ⚡';
+    document.title = seoTitle + ' | RoyVerse Hub';
     
-    // Attempt dynamic update of meta description
+    // Dynamically synchronize meta description tags for robust Google Search Crawler optimization
     let metaDesc = document.querySelector('meta[name="description"]');
     if (!metaDesc) {
       metaDesc = document.createElement('meta');
@@ -87,7 +108,8 @@ export default function TrustPages({ activePath, onNavigate, onClose }: TrustPag
           name: form.name,
           email: form.email,
           subject: form.subject,
-          message: form.message
+          message: form.message,
+          website: 'RoyVerse Hub'
         })
       });
 
@@ -97,16 +119,29 @@ export default function TrustPages({ activePath, onNavigate, onClose }: TrustPag
         setForm({ name: '', email: '', subject: 'Feedback', message: '' });
         setActiveTicketCount(prev => prev + 1);
         
-        // Auto reset success state after 7 seconds
-        setTimeout(() => setSubmitSuccess(false), 7000);
+        setTimeout(() => setSubmitSuccess(false), 8000);
       } else {
-        throw new Error('Formspree response not ok');
+        throw new Error('Formspree connection issue');
       }
     } catch (err) {
       setIsSubmitting(false);
-      setSubmitError('Transmission failed. Try again.');
+      setSubmitError('Failed to transmit message. Please contact us directly at roynoruless@gmail.com');
     }
   };
+
+  // Pre-compiled list of all 10 official compliance directories
+  const menuItems = [
+    { path: '/about-us', label: '📖 About Us', desc: 'Who we are & our mission' },
+    { path: '/contact-us', label: '📞 Contact Us', desc: 'Feedback & support channel' },
+    { path: '/privacy-policy', label: '🔒 Privacy Policy', desc: 'Your data safeguard pact' },
+    { path: '/terms-and-conditions', label: '⚖️ Terms of Service', desc: 'Core platform rules' },
+    { path: '/cookie-policy', label: '🍪 Cookie Policy', desc: 'Essential & Google AdSense' },
+    { path: '/disclaimer', label: '📢 Disclaimer', desc: 'UGC & content accuracy' },
+    { path: '/dmca-policy', label: '🚀 DMCA Policy', desc: 'Takedown requests process' },
+    { path: '/community-guidelines', label: '🤝 Community Rules', desc: 'Respect & safe engagement' },
+    { path: '/content-moderation', label: '🛡️ Moderation', desc: 'Submissions review process' },
+    { path: '/data-deletion', label: '🗑️ Data Deletion', desc: 'Permanent account wipe' }
+  ];
 
   return (
     <div 
@@ -114,69 +149,67 @@ export default function TrustPages({ activePath, onNavigate, onClose }: TrustPag
       id="trust-pages-modal-root"
     >
       {/* 1. CINEMATIC PREMIUM TOP NAV BAR */}
-      <div className="sticky top-0 bg-black/80 backdrop-blur-md border-b border-white/5 z-30 px-4 py-4 md:px-8 flex items-center justify-between select-none">
+      <div className="sticky top-0 bg-zinc-950/90 backdrop-blur-md border-b border-white/5 z-30 px-4 py-4 md:px-8 flex items-center justify-between select-none">
         
         <button
           onClick={onClose}
           className="inline-flex items-center gap-2 px-3 py-1.5 text-[10px] font-mono font-black text-zinc-400 hover:text-white border border-zinc-900 rounded-lg hover:border-red-500/30 transition bg-black/40 cursor-pointer"
         >
           <ArrowLeft size={13} className="text-red-500" />
-          <span>RETURN TO HOME</span>
+          <span>RETURN TO PORTAL</span>
         </button>
 
         <div className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
           <h1 className="text-xs font-sans font-black tracking-[0.2em] uppercase text-white">
-            TRUST CENTER
+            COMPLIANCE CENTER
           </h1>
         </div>
 
         <div className="hidden md:flex gap-1">
-          <span className="text-[9px] font-mono text-zinc-500 border border-zinc-900 px-2 py-1 rounded bg-zinc-950/40 uppercase tracking-widest">
-            AdSense Safe Verified ID
+          <span className="text-[9px] font-mono text-zinc-500 border border-zinc-900 px-2.5 py-1 rounded bg-zinc-950/40 uppercase tracking-widest">
+            RoyVerse Hub Verified ID
           </span>
         </div>
       </div>
 
       {/* 2. TABBED PANEL CONTENT EXPLORER */}
-      <div className="max-w-4xl mx-auto w-full px-4 md:px-6 py-8 flex-1 flex flex-col md:flex-row gap-8">
+      <div className="max-w-6xl mx-auto w-full px-4 md:px-6 py-8 flex-1 flex flex-col lg:flex-row gap-8">
         
         {/* Navigation Sidebar */}
-        <div className="w-full md:w-[240px] shrink-0 flex flex-col gap-1.5 select-none md:sticky md:top-24 h-fit">
+        <div className="w-full lg:w-[260px] shrink-0 flex flex-col gap-1.5 select-none lg:sticky lg:top-24 h-fit">
           <div className="px-3 mb-2">
-            <span className="text-[9px] font-mono text-zinc-650 tracking-[0.15em] uppercase font-bold block">
-              Official Directories
+            <span className="text-[9px] font-mono text-zinc-600 tracking-[0.15em] uppercase font-bold block">
+              Official Guidelines & Policies
             </span>
           </div>
 
-          {[
-            { path: '/about-us', label: '📖 About Us', desc: 'Who we represent' },
-            { path: '/privacy-policy', label: '🔒 Privacy Policy', desc: 'User data protection' },
-            { path: '/terms-and-conditions', label: '⚖️ Terms of Conduct', desc: 'Core platform rules' },
-            { path: '/disclaimer', label: '📢 Legal Disclaimer', desc: 'Ownership disclaimer' },
-            { path: '/contact-us', label: '📞 Connect Directly', desc: 'Feedback & assistance' }
-          ].map((item) => {
-            const isSelected = activePath === item.path;
-            return (
-              <button
-                key={item.path}
-                onClick={() => onNavigate(item.path)}
-                className={`py-3 px-4 rounded-xl text-left border transition-all cursor-pointer flex flex-col justify-center ${
-                  isSelected
-                    ? 'border-red-500 bg-red-950/15 text-white shadow-[0_0_15px_rgba(239,68,68,0.15)]'
-                    : 'border-zinc-950 bg-zinc-950/30 text-zinc-400 hover:text-white hover:border-zinc-805'
-                }`}
-              >
-                <span className="text-xs font-bold leading-normal">{item.label}</span>
-                <span className="text-[9px] font-mono text-zinc-500 mt-1">{item.desc}</span>
-              </button>
-            );
-          })}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-1 gap-1.5">
+            {menuItems.map((item) => {
+              const isSelected = activePath === item.path;
+              return (
+                <button
+                  key={item.path}
+                  onClick={() => onNavigate(item.path)}
+                  className={`py-2.5 px-4 rounded-xl text-left border transition-all cursor-pointer flex flex-col justify-center ${
+                    isSelected
+                      ? 'border-red-500 bg-red-950/15 text-white shadow-[0_0_15px_rgba(239,68,68,0.15)]'
+                      : 'border-zinc-950 bg-zinc-950/40 text-zinc-400 hover:text-white hover:border-zinc-800'
+                  }`}
+                >
+                  <span className="text-xs font-bold leading-normal">{item.label}</span>
+                  <span className="text-[9px] font-mono text-zinc-500 mt-0.5">{item.desc}</span>
+                </button>
+              );
+            })}
+          </div>
 
-          <div className="mt-8 p-4 rounded-xl bg-zinc-950/25 border border-zinc-900/60 text-center select-none hidden md:block">
+          <div className="mt-6 p-4 rounded-xl bg-zinc-950/25 border border-zinc-900/60 text-center select-none hidden lg:block">
             <span className="text-[10px] font-mono text-zinc-500 leading-normal block">
-              Need assistance immediately?<br />
-              <b className="text-red-500 font-bold block mt-1">+91 9027671630</b>
+              Need immediate compliance assistance?<br />
+              <a href="mailto:roynoruless@gmail.com" className="text-red-500 font-bold block mt-1 hover:underline">
+                roynoruless@gmail.com
+              </a>
             </span>
           </div>
         </div>
@@ -189,304 +222,153 @@ export default function TrustPages({ activePath, onNavigate, onClose }: TrustPag
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.35 }}
-              className="bg-zinc-950/50 border border-zinc-850 p-6 md:p-8 rounded-3xl relative overflow-hidden shadow-[0_15px_45px_rgba(0,0,0,0.8)]"
+              transition={{ duration: 0.3 }}
+              className="bg-zinc-950/25 border border-zinc-900 p-6 md:p-8 rounded-3xl relative overflow-hidden shadow-[0_15px_45px_rgba(0,0,0,0.8)]"
             >
-              {/* Dynamic Aura neon gradient */}
+              {/* Dynamic decorative neon gradient backing */}
               <div className="absolute -top-12 -right-12 w-48 h-48 bg-red-650/5 blur-[70px] pointer-events-none rounded-full" />
               <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-zinc-800/5 blur-[70px] pointer-events-none rounded-full" />
 
-              {/* VIEW: ABOUT US */}
+              {/* 1. ABOUT US */}
               {activePath === '/about-us' && (
                 <div className="space-y-6">
-                  {/* Decorative Icon Banner */}
                   <div className="flex items-center gap-3 border-b border-white/5 pb-4 select-none">
                     <span className="w-10 h-10 rounded-xl bg-red-950/30 border border-red-500/20 text-red-500 flex items-center justify-center">
                       <Sparkles size={20} className="animate-spin" style={{ animationDuration: '8s' }} />
                     </span>
                     <div>
                       <h2 className="text-lg font-black font-sans tracking-wide text-white uppercase leading-none">
-                        Our Story
+                        About RoyVerse Hub
                       </h2>
                       <span className="text-[10px] font-mono text-red-400 uppercase tracking-widest mt-1.5 block">
-                        Behind the shayari sanctuary & midnight rebellion
+                        Our Mission, Vision, and Design Philosophy
                       </span>
                     </div>
                   </div>
 
                   <div className="text-zinc-300 space-y-4 text-xs md:text-sm leading-relaxed font-sans">
                     <p className="first-letter:text-4xl first-letter:font-black first-letter:text-red-500 first-letter:float-left first-letter:mr-2">
-                      Welcome to <span className="text-white font-bold">"Roy No Rules..."</span>, a digital escape designed for souls who feel deeply, live passionately, and refuse to define their lives by standard visual conventions. We are not just another website containing listed text; we are a dedicated Hinglish and Hindi emotional sanctuary.
+                      RoyVerse Hub (<a href="https://royversehub.netlify.app" target="_blank" rel="noopener noreferrer" className="text-white underline hover:text-red-400">https://royversehub.netlify.app</a>) constitutes a premier, dynamic, user-generated platform dedicated to Urdu, Hindi, and English Shayari, classic Quotes, emotional journaling, motivation, Love chronicles, Sad notes, Friendship, Attitude, and community content exploration.
                     </p>
 
                     <p>
-                      Our existence is rooted in isolation, rebellion, and authentic creative expression. Here, we help users capture and celebrate midnight thoughts, romantic soundscapes, heavy motivation, and standard unbreakable attitudes.
+                      Founded by <span className="text-white font-bold">Ritik Rai</span> (<a href="mailto:roynoruless@gmail.com" className="text-red-400 hover:underline">roynoruless@gmail.com</a>), the primary goal of RoyVerse Hub is to foster an atmosphere of unrestricted creative freedom, giving users and independent poets high-end features to design custom status presets, listen to synthesized voice playbacks of literature, and share deep aesthetic layouts without any engineering friction.
                     </p>
 
-                    <h4 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
-                      What can you accomplish inside Roy No Rules?
-                    </h4>
-
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      Core Operations
+                    </h3>
                     <ul className="grid grid-cols-1 md:grid-cols-2 gap-3.5 pt-2 select-none">
-                      <li className="p-3 bg-zinc-900/30 border border-zinc-900 rounded-xl flex items-start gap-2.5 text-xs text-zinc-400">
-                        <span className="text-xs text-red-400 mt-0.5">🌠</span>
+                      <li className="p-3 bg-zinc-900/20 border border-zinc-900 rounded-xl flex items-start gap-2.5 text-xs text-zinc-400">
+                        <span className="text-xs text-red-400 mt-0.5">✨</span>
                         <div>
-                          <b className="text-white block font-bold mb-0.5">Live Status Customizer</b>
-                          Procedurally generate stunning IG/WhatsApp status cards in beautiful high contrast presets.
+                          <b className="text-white block font-bold mb-0.5">User-Generated Submissions</b>
+                          Every user can directly submit high-value poetry and quotes to be categorized and visible worldwide.
                         </div>
                       </li>
-                      <li className="p-3 bg-zinc-900/30 border border-zinc-900 rounded-xl flex items-start gap-2.5 text-xs text-zinc-400">
+                      <li className="p-3 bg-zinc-900/20 border border-zinc-900 rounded-xl flex items-start gap-2.5 text-xs text-zinc-400">
+                        <span className="text-xs text-red-400 mt-0.5">🎭</span>
+                        <div>
+                          <b className="text-white block font-bold mb-0.5">Premium HD Studio</b>
+                          Instantly transform static poetry into gorgeous, high-contrast, downloadable graphic cards for IG/WhatsApp.
+                        </div>
+                      </li>
+                      <li className="p-3 bg-zinc-900/20 border border-zinc-900 rounded-xl flex items-start gap-2.5 text-xs text-zinc-400">
                         <span className="text-xs text-red-400 mt-0.5">📢</span>
                         <div>
-                          <b className="text-white block font-bold mb-0.5">Free Recitation Player</b>
-                          Listen to high-quality synthesized voice renditions of emotional poetry instantly.
+                          <b className="text-white block font-bold mb-0.5">Auto Post Telegram Hooks</b>
+                          Vetted community masterpieces are directly broadcasted to the official Telegram channel: <a href="https://t.me/royversehub" target="_blank" rel="noopener noreferrer" className="text-red-400 hover:underline">https://t.me/royversehub</a>.
                         </div>
                       </li>
-                      <li className="p-3 bg-zinc-900/30 border border-zinc-900 rounded-xl flex items-start gap-2.5 text-xs text-zinc-400">
-                        <span className="text-xs text-red-400 mt-0.5">❤️</span>
-                        <div>
-                          <b className="text-white block font-bold mb-0.5">Secure Collections Vault</b>
-                          Bookmark entries safely inside offline-first device local cache folders.
-                        </div>
-                      </li>
-                      <li className="p-3 bg-zinc-900/30 border border-zinc-900 rounded-xl flex items-start gap-2.5 text-xs text-zinc-400">
+                      <li className="p-3 bg-zinc-900/20 border border-zinc-900 rounded-xl flex items-start gap-2.5 text-xs text-zinc-400">
                         <span className="text-xs text-red-400 mt-0.5">🕊️</span>
                         <div>
-                          <b className="text-white block font-bold mb-0.5">Submit Original Artwork</b>
-                          Participate in active community scores, gain aura milestones, and get verified.
+                          <b className="text-white block font-bold mb-0.5">Zero Boundaries, Full Autonomy</b>
+                          A dedicated space celebrating midnight thoughts, romantic soundscapes, grief support, and robust attitude poetry.
                         </div>
                       </li>
                     </ul>
 
-                    <p className="mt-6">
-                      Every shayari listed in our directory underwent physical moderation and alignment formatting to ensure top literary value. We strongly support self-motivated poetry creators and provide free graphic tooling so they can focus purely on original storytelling.
+                    <p className="mt-4">
+                      Whether you are an aspiring author trying to build your personal audience or a poetry lover seeking a safe sanctuary to absorb genuine emotions, RoyVerse Hub represents our shared space to celebrate deep, raw human stories.
                     </p>
                   </div>
                 </div>
               )}
 
-              {/* VIEW: PRIVACY POLICY */}
-              {activePath === '/privacy-policy' && (
-                <div className="space-y-6">
-                  <div className="flex items-center gap-3 border-b border-white/5 pb-4 select-none">
-                    <span className="w-10 h-10 rounded-xl bg-red-950/30 border border-red-500/20 text-red-500 flex items-center justify-center">
-                      <ShieldCheck size={20} />
-                    </span>
-                    <div>
-                      <h2 className="text-lg font-black font-sans tracking-wide text-white uppercase leading-none">
-                        Privacy Safeguards
-                      </h2>
-                      <span className="text-[10px] font-mono text-red-400 uppercase tracking-widest mt-1.5 block">
-                        Strict account cryptography policies & cookies disclosure
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="text-zinc-300 space-y-4 text-xs md:text-sm leading-relaxed">
-                    <p>
-                      At <span className="text-white">Roy No Rules...</span>, privacy is not a theoretical compliance checklist. It is a fundamental right. We do not engage in aggressive cookies harvesting, trace tracking, or user tracking across web domains. Your data is protected by default.
-                    </p>
-
-                    <h4 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
-                      1. Account & Cryptography Security
-                    </h4>
-                    <p>
-                      When you initialize a Resident Account Profile, we request your designated password to synchronize folder preferences. This password field is IMMEDIATELY formatted via standard hashes before getting written into the client registry. We do not store, review, or print plain text credentials.
-                    </p>
-
-                    <h4 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
-                      2. Cookie Disclosures (Google AdSense Ready)
-                    </h4>
-                    <p>
-                      We utilize basic, lightweight localized cookies (localStorage) to sustain your favorite bookmarks, selected music states, current sound levels, and active screen color settings. These stay strictly isolated to your immediate browser sandboxing.
-                    </p>
-                    <p>
-                      Please note: For future monetization and sustainability, this website intends to deploy Google AdSense verification. Search engine integration involves basic cookies that serve targeted ads based on non-identifiable user interests. You reserve the absolute right to restrict third-party cookies inside your personal browser security settings at any point.
-                    </p>
-
-                    <h4 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
-                      3. Data Sharing Protection Commitment
-                    </h4>
-                    <div className="p-4 rounded-xl bg-zinc-950/40 border border-zinc-900 text-xs font-mono text-zinc-400 space-y-2 select-none">
-                      <p>✅ PASSWORDS ARE SECURELY ENCRYPTED VIA CLIENT HASH CODES</p>
-                      <p>✅ EMAIL INBOX DETAILS ARE STRICTLY SHIELDED & PRIVATE</p>
-                      <p>❌ CORPORATE SELL-OFFS OR CLOUD BROKER MARKETING IS FORBIDDEN</p>
-                    </div>
-
-                    <p>
-                      If you ever decide to delete your resident account profile, simply click the Cache reset button inside configuration panel to securely swipe away all traces.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* VIEW: TERMS & CONDITIONS */}
-              {activePath === '/terms-and-conditions' && (
-                <div className="space-y-6">
-                  <div className="flex items-center gap-3 border-b border-white/5 pb-4 select-none">
-                    <span className="w-10 h-10 rounded-xl bg-red-950/30 border border-red-500/20 text-red-500 flex items-center justify-center">
-                      <FileText size={20} />
-                    </span>
-                    <div>
-                      <h2 className="text-lg font-black font-sans tracking-wide text-white uppercase leading-none">
-                        Terms of Human Conduct
-                      </h2>
-                      <span className="text-[10px] font-mono text-red-400 uppercase tracking-widest mt-1.5 block">
-                        Respectful engagement, moderation rights & intellectual standards
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="text-zinc-300 space-y-4 text-xs md:text-sm leading-relaxed">
-                    <p>
-                      This community is built on mutual respect and shared artistic space. By continuing to explore, download, and participate in our directory, you agree to these fundamental guidelines:
-                    </p>
-
-                    <h4 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
-                      1. Respectful Creative Engagement
-                    </h4>
-                    <p>
-                      Our platform allows and encourages community submissions. However, users are strictly prohibited from submitting abusive, spammy, copy-pasted, threatening, or vulgar content. Our moderator panel reserves the absolute right to block accounts, remove logs, and restrict publishing indices for any user breaking this pact.
-                    </p>
-
-                    <h4 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
-                      2. Copyright Responsibilities
-                    </h4>
-                    <p>
-                      Users submitting poetry or quotes represent that they hold the copyrights or are quoting with legal consent and attribution to the original writers. If any piece infringes your legal intellectual copyright, write to us directly at roynoruless@gmail.com with reasonable evidence, and we will take immediate prompt actions under standard DMCA rules.
-                    </p>
-
-                    <h4 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
-                      3. Abuse Mitigation Policy
-                    </h4>
-                    <p>
-                      Any form of algorithmic scraping, flood submitting, script testing, or brute forcing is heavily restricted. We protect our container bandwidth and ensure other readers receive top speed access. Infringing entities will be permanently blacklisted from accessing this server.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* VIEW: DISCLAIMER */}
-              {activePath === '/disclaimer' && (
-                <div className="space-y-6">
-                  <div className="flex items-center gap-3 border-b border-white/5 pb-4 select-none">
-                    <span className="w-10 h-10 rounded-xl bg-red-950/30 border border-red-500/20 text-red-500 flex items-center justify-center">
-                      <AlertTriangle size={20} />
-                    </span>
-                    <div>
-                      <h2 className="text-lg font-black font-sans tracking-wide text-white uppercase leading-none">
-                        Artistic & Legal Disclaimer
-                      </h2>
-                      <span className="text-[10px] font-mono text-red-400 uppercase tracking-widest mt-1.5 block">
-                        Purpose of content & original creators protection guidelines
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="text-zinc-300 space-y-4 text-xs md:text-sm leading-relaxed">
-                    <p>
-                      Let us make everything crystal clear and completely honest:
-                    </p>
-
-                    <div className="p-4 border-l border-red-500 bg-red-950/10 text-zinc-300 rounded-r-xl italic space-y-2 text-xs">
-                      <p>
-                        "The materials and shayari posted on Roy No Rules... are provided strictly for emotional expression, creative motivation, and constructive visual entertainment purposes."
-                      </p>
-                    </div>
-
-                    <h4 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
-                      1. Emotional & Mental Well-being
-                    </h4>
-                    <p>
-                      While we write extensively about heartbreak, sadness, isolation, and romance, this portal represents an artistic hub. It is not professional psychoanalysis, mental health counsel, or relationship advisory. If you are going through rough emotional states, please seek professional human consulting.
-                    </p>
-
-                    <h4 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-550 pl-2.5">
-                      2. Respect of Authorship
-                    </h4>
-                    <p>
-                      A portion of the shayari entries displayed in the default stream are fan-compiled tribute lines shared as cultural relics of Urdu, Hindi, and Punjabi shayari. They belong to their respective legendary poets. We do not claim exclusive commercial copyright ownership over classic poetry lines.
-                    </p>
-
-                    <h4 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-550 pl-2.5">
-                      3. Take-down Removal Rights
-                    </h4>
-                    <p>
-                      If you are the legal creator of any featured poetry, statement, or quote, and you object to its presence in our directory, please CONNECT immediately. We honor all takedown requests inside 24 hours.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* VIEW: CONTACT US */}
+              {/* 2. CONTACT US */}
               {activePath === '/contact-us' && (
                 <div className="space-y-6">
                   <div className="flex items-center justify-between border-b border-white/5 pb-4 select-none">
                     <div className="flex items-center gap-3">
-                      <span className="w-10 h-10 rounded-xl bg-red-950/30 border border-red-500/20 text-red-500 flex items-center justify-center">
-                        <Phone size={20} className="animate-bounce" />
+                      <span className="w-10 h-10 rounded-xl bg-red-950/30 border border-red-500/20 text-red-505 flex items-center justify-center">
+                        <Mail size={20} className="text-red-500 animate-bounce" />
                       </span>
                       <div>
                         <h2 className="text-lg font-black font-sans tracking-wide text-white uppercase leading-none">
                           Connect With Us
                         </h2>
                         <span className="text-[10px] font-mono text-red-400 uppercase tracking-widest mt-1.5 block">
-                          Instant official contact & feedback channel
+                          Official support, inquiries, and contributor pipelines
                         </span>
                       </div>
                     </div>
-                    <span className="text-[8px] font-mono bg-zinc-900 border border-white/5 p-1.5 rounded-full text-zinc-400 uppercase tracking-widest">
-                      Response: &lt; 2 hours
+                    <span className="text-[8px] font-mono bg-zinc-900 border border-white/5 px-2 py-1 rounded-full text-zinc-400 uppercase tracking-widest">
+                      Typical Response: &lt; 2 Hours
                     </span>
                   </div>
 
-                  {/* Two Column Layout for Contacts Info + Glass Form */}
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-2">
                     
-                    {/* Official Contact Cards Grid */}
+                    {/* Official Reach Details */}
                     <div className="lg:col-span-5 space-y-4">
                       
-                      {/* Tele-support Card */}
-                      <div className="p-4 rounded-2xl bg-zinc-900/30 border border-zinc-900 flex items-start gap-4 transition hover:border-red-500/20 select-text">
-                        <span className="p-2.5 rounded-xl bg-red-950/40 border border-red-500/20 text-red-505 shrink-0">
-                          <Phone size={16} className="text-red-500" />
+                      <div className="p-4 rounded-xl bg-zinc-900/20 border border-zinc-900 flex items-start gap-4 hover:border-red-500/20 transition-all select-text">
+                        <span className="p-2.5 rounded-lg bg-red-950/40 border border-red-500/20 text-red-500 shrink-0">
+                          <Mail size={16} />
                         </span>
                         <div>
-                          <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider block">TELE-SUPPORT PHONE</span>
-                          <span className="text-sm font-black text-white mt-0.5 block">+91 9027671630</span>
-                          <span className="text-[10px] text-zinc-400 mt-1 block">Active on Caller IDs & Telegram chats</span>
+                          <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider block">SUPPORT DESK</span>
+                          <a href="mailto:roynoruless@gmail.com" className="text-sm font-black text-white mt-0.5 block hover:underline">
+                            roynoruless@gmail.com
+                          </a>
+                          <span className="text-[10px] text-zinc-400 mt-1 block">Write to us for takedowns, submissions, and feedback</span>
                         </div>
                       </div>
 
-                      {/* Mail Support Card */}
-                      <div className="p-4 rounded-2xl bg-zinc-900/30 border border-zinc-900 flex items-start gap-4 transition hover:border-red-500/20 select-text">
-                        <span className="p-2.5 rounded-xl bg-red-950/40 border border-red-500/20 text-red-505 shrink-0">
-                          <Mail size={16} className="text-red-500" />
+                      <div className="p-4 rounded-xl bg-zinc-900/20 border border-zinc-900 flex items-start gap-4 hover:border-red-500/20 transition-all">
+                        <span className="p-2.5 rounded-lg bg-red-950/40 border border-red-500/20 text-red-500 shrink-0">
+                          <MessageSquare size={16} />
                         </span>
                         <div>
-                          <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider block">OFFICIAL EMAIL SUPPORT</span>
-                          <span className="text-sm font-black text-white mt-0.5 block">roynoruless@gmail.com</span>
-                          <span className="text-[10px] text-zinc-400 mt-1 block">Write to us for partnerships, reports or licensing</span>
+                          <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider block">OFFICIAL TELEGRAM CHANNEL</span>
+                          <a 
+                            href="https://t.me/royversehub" 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="text-sm font-black text-white mt-0.5 block hover:underline"
+                          >
+                            t.me/royversehub
+                          </a>
+                          <span className="text-[10px] text-zinc-400 mt-1 block">Join for dynamic updates, broadcasts and poetry logs</span>
                         </div>
                       </div>
 
-                      {/* Location Office Card */}
-                      <div className="p-4 rounded-2xl bg-zinc-900/30 border border-zinc-900 flex items-start gap-4 select-none">
-                        <span className="p-2.5 rounded-xl bg-red-950/40 border border-red-500/20 text-red-505 shrink-0">
-                          <MapPin size={16} className="text-red-500" />
+                      <div className="p-4 rounded-xl bg-zinc-900/20 border border-zinc-900 flex items-start gap-4">
+                        <span className="p-2.5 rounded-lg bg-red-950/40 border border-red-500/20 text-red-500 shrink-0">
+                          <MapPin size={16} />
                         </span>
                         <div>
-                          <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider block">BASE SANCTUARY OFFICE</span>
+                          <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider block">OFFICIAL RESIDENCY</span>
                           <span className="text-sm font-black text-white mt-0.5 block">Uttar Pradesh, India</span>
-                          <span className="text-[10px] text-zinc-400 mt-1 block">Rooted securely in the heart of classic Hindi-Urdu heritage</span>
+                          <span className="text-[10px] text-zinc-400 mt-1 block">Ritik Rai • Founder & Director</span>
                         </div>
                       </div>
 
                     </div>
 
-                    {/* Interactive Glassmorphism Form Area */}
+                    {/* Contact Form Submission Area */}
                     <div className="lg:col-span-7 bg-zinc-900/10 border border-zinc-900 p-5 rounded-2xl relative">
-                      
                       <AnimatePresence mode="wait">
                         {submitSuccess ? (
                           <motion.div 
@@ -499,20 +381,20 @@ export default function TrustPages({ activePath, onNavigate, onClose }: TrustPag
                               <CheckCircle size={24} className="animate-pulse" />
                             </span>
                             <div className="space-y-1">
-                              <h4 className="text-sm font-black text-white uppercase tracking-wider">Message transmitted successfully 👀🔥</h4>
-                              <p className="text-xs text-zinc-500 max-w-xs mx-auto leading-relaxed">
-                                Thank you for connecting with "Roy No Rules...". Our support team will verify your query and follow back within 2 hours.
+                              <h3 className="text-sm font-black text-white uppercase tracking-wider">Ticket Created Successfully</h3>
+                              <p className="text-xs text-zinc-400 max-w-xs mx-auto leading-relaxed">
+                                Thank you for connecting with Ritik Rai at RoyVerse Hub. We have queued your request and will follow up shortly.
                               </p>
                             </div>
                             <button
                               onClick={() => setSubmitSuccess(false)}
                               className="px-4 py-1.5 border border-zinc-800 text-[10px] font-mono text-zinc-400 hover:text-white rounded-lg transition duration-200 cursor-pointer"
                             >
-                              Send Another Ticket
+                              Open Another Ticket
                             </button>
                           </motion.div>
                         ) : (
-                          <form action="https://formspree.io/f/xzdworly" method="POST" onSubmit={handleContactSubmit} className="space-y-4 text-left">
+                          <form onSubmit={handleContactSubmit} className="space-y-4 text-left">
                             {submitError && (
                               <div className="p-3 bg-red-950/20 border border-red-500/20 rounded-xl text-red-500 font-bold font-mono text-xs text-center">
                                 {submitError}
@@ -557,9 +439,9 @@ export default function TrustPages({ activePath, onNavigate, onClose }: TrustPag
                                 className="w-full bg-zinc-950 border border-zinc-850 text-white rounded-xl px-3 py-2 text-xs outline-none cursor-pointer"
                               >
                                 <option value="Inquiry">General Inquiry</option>
-                                <option value="Content Contribution">Contribution Proposal</option>
-                                <option value="Licensing & Rights">Partnership Opportunities</option>
-                                <option value="AdSense Feedback">Website Feedback</option>
+                                <option value="Content Contribution">Poetry Submission / Suggestion</option>
+                                <option value="Takedown Request">DMCA & Copyright Takedown</option>
+                                <option value="Monetization Inquiries">AdSense / Feedback</option>
                               </select>
                             </div>
 
@@ -570,7 +452,7 @@ export default function TrustPages({ activePath, onNavigate, onClose }: TrustPag
                                 rows={4}
                                 value={form.message}
                                 onChange={(e) => setForm(prev => ({ ...prev, message: e.target.value }))}
-                                placeholder="Write your core request, suggestions, or shayari contribution details..."
+                                placeholder="Write details about your poetry submission, compliance request, or general feedback..."
                                 className="w-full bg-zinc-950 border border-zinc-850 focus:border-red-500/50 text-white rounded-xl p-3 text-xs outline-none resize-none"
                               />
                             </div>
@@ -578,17 +460,426 @@ export default function TrustPages({ activePath, onNavigate, onClose }: TrustPag
                             <button
                               type="submit"
                               disabled={isSubmitting || !form.name || !form.email || !form.message}
-                              className="w-full h-11 pointer-events-auto bg-red-650 hover:bg-red-700 active:scale-95 disabled:opacity-50 text-white font-black text-[11px] uppercase tracking-widest rounded-xl transition duration-300 flex items-center justify-center gap-2 cursor-pointer shadow-[0_5px_15px_rgba(220,38,38,0.3)] hover:shadow-[0_5px_20px_rgba(220,38,38,0.5)]"
+                              className="w-full h-11 pointer-events-auto bg-red-650 hover:bg-red-700 active:scale-95 disabled:opacity-50 text-white font-black text-[11px] uppercase tracking-widest rounded-xl transition duration-300 flex items-center justify-center gap-2 cursor-pointer shadow-[0_5px_15px_rgba(220,38,38,0.3)]"
                             >
                               <Send size={13} />
-                              <span>{isSubmitting ? 'TRANSMITTING BYTES...' : 'TRANSMIT SECURE TICKET'}</span>
+                              <span>{isSubmitting ? 'TRANSMITTING MESSAGE...' : 'TRANSMIT SECURE TICKET'}</span>
                             </button>
                           </form>
                         )}
                       </AnimatePresence>
-
                     </div>
 
+                  </div>
+                </div>
+              )}
+
+              {/* 3. PRIVACY POLICY */}
+              {activePath === '/privacy-policy' && (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3 border-b border-white/5 pb-4 select-none">
+                    <span className="w-10 h-10 rounded-xl bg-red-950/30 border border-red-500/20 text-red-500 flex items-center justify-center">
+                      <ShieldCheck size={20} />
+                    </span>
+                    <div>
+                      <h2 className="text-lg font-black font-sans tracking-wide text-white uppercase leading-none">
+                        Privacy Policy
+                      </h2>
+                      <span className="text-[10px] font-mono text-red-400 uppercase tracking-widest mt-1.5 block">
+                        Our comprehensive user data & cookies safeguard commit
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-zinc-300 space-y-4 text-xs md:text-sm leading-relaxed">
+                    <p>
+                      At <span className="text-white font-bold">RoyVerse Hub</span>, accessible via <a href="https://royversehub.netlify.app" className="text-red-400 hover:underline">https://royversehub.netlify.app</a>, protecting user privacy is our ultimate commitment. This document clearly defines the exact categories of data collected, saved, analyzed, or synchronized during your creative journey with us.
+                    </p>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      1. Information Collection & Usage
+                    </h3>
+                    <p>
+                      We compile very basic, lightweight data to operationalize premium services, including:
+                    </p>
+                    <ul className="list-disc pl-5 space-y-1.5 text-zinc-400 mt-1">
+                      <li><b>User Account Credentials:</b> If you register a profile, we securely collect designated usernames and hashes to maintain your local configurations.</li>
+                      <li><b>User Submissions:</b> Shayari, poetry lines, or stories submitted through our portals are stored securely on the core server databases.</li>
+                      <li><b>Email Communications:</b> If you submit a contact ticket or DMCA notification, your email is preserved purely for support responses.</li>
+                    </ul>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      2. Cookies and Browser Cache
+                    </h3>
+                    <p>
+                      We utilize standard local browser capabilities (localStorage / sessionStorage) to store your preferred bookmark libraries, favorite sound level coordinates, selected music players, and interface layouts. These stay strictly isolated to your device browser sandbox.
+                    </p>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      3. Google Tools & Advertising
+                    </h3>
+                    <p>
+                      RoyVerse Hub integrates dynamic, industry-standard SEO and indexing systems to verify proper search relevance:
+                    </p>
+                    <ul className="list-disc pl-5 space-y-1.5 text-zinc-400 mt-1">
+                      <li><b>Google Search Console:</b> Used to check proper canonical indexing and find crawl states.</li>
+                      <li><b>Google Analytics:</b> Compiles non-personally identifiable traffic details (device screens, user sessions, geographic regions) to optimize bandwidth speeds and UI responsions.</li>
+                      <li><b>Future Google AdSense Integration:</b> To sustain hosting, this application processes Google tracking cookies to show targeted, safe context advertisements based on your general artistic browsing history inside search directories.</li>
+                    </ul>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      4. Telegram Integrations Safety
+                    </h3>
+                    <p>
+                      Administrators configure custom automation triggers through verified API bot tokens and Chat IDs. These tokens are saved in highly secure server-side environment parameters and are never exposed, printable, or readable from standard front-end client debuggers.
+                    </p>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      5. Your Legal Rights & Data Protections
+                    </h3>
+                    <p>
+                      You retain full authority to review, update, or permanently delete any stored profile parameters. To wipe out your bookmarks instantly, click "Clear Browser Storage" in settings. For server-side content deletions, review our dedicated Data Deletion Policy or write directly to <a href="mailto:roynoruless@gmail.com" className="hover:underline text-red-500 font-bold">roynoruless@gmail.com</a>.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* 4. TERMS & CONDITIONS */}
+              {activePath === '/terms-and-conditions' && (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3 border-b border-white/5 pb-4 select-none">
+                    <span className="w-10 h-10 rounded-xl bg-red-950/30 border border-red-500/20 text-red-500 flex items-center justify-center">
+                      <FileText size={20} />
+                    </span>
+                    <div>
+                      <h2 className="text-lg font-black font-sans tracking-wide text-white uppercase leading-none">
+                        Terms of Service
+                      </h2>
+                      <span className="text-[10px] font-mono text-red-400 uppercase tracking-widest mt-1.5 block">
+                        Rules of engagement, content licensing, and user codes of conduct
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-zinc-300 space-y-4 text-xs md:text-sm leading-relaxed">
+                    <p>
+                      By entering, accessing, browsing, or contributing to <span className="text-white font-bold">RoyVerse Hub</span>, you explicitly declare that you have read, understood, and agreed to be legally bound by these terms:
+                    </p>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      1. User Submission Licensing
+                    </h3>
+                    <p>
+                      When you submit Shayari, poetry lines, thoughts, or custom emotions through the RoyVerse Hub submission form, you retain full authorial ownership of your creative text. However, by publishing content on RoyVerse Hub, you grant us an absolute, royalty-free, perpetual, world-wide, non-exclusive license to format, display, distribute, translate, and archive the submitted work in public streams (including the website feed, HD studio generators, and Telegram feeds).
+                    </p>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      2. Forbidden Code of Human Conduct
+                    </h3>
+                    <p>
+                      Every contributor must maintain highest standards of collaborative artistic respect. Users are strictly prohibited from submitting content that is:
+                    </p>
+                    <ul className="list-disc pl-5 space-y-1 border-l border-zinc-800 ml-2 text-zinc-400">
+                      <li>Abusive, vulgar, obscene, threatening, or designed to harass any other entity.</li>
+                      <li>Plagiarized, copyrighted by other modern authors without their explicit written consent.</li>
+                      <li>Containing promotional links, advertisements, malicious files, or automated bot scripts.</li>
+                    </ul>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      3. Operational Suspension & Deletion
+                    </h3>
+                    <p>
+                      Our content moderators reserve absolute, unannounced rights to modify, refuse, drop, or permanently delete any community post that infringes our Terms of Service. Highly offensive users will be banned from further utilizing RoyVerse Hub via temporary or permanent IP suspensions.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* 5. COOKIE POLICY */}
+              {activePath === '/cookie-policy' && (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3 border-b border-white/5 pb-4 select-none">
+                    <span className="w-10 h-10 rounded-xl bg-red-950/30 border border-red-500/20 text-red-500 flex items-center justify-center">
+                      <Flame size={20} />
+                    </span>
+                    <div>
+                      <h2 className="text-lg font-black font-sans tracking-wide text-white uppercase leading-none">
+                        Cookie Policy
+                      </h2>
+                      <span className="text-[10px] font-mono text-red-400 uppercase tracking-widest mt-1.5 block">
+                        Transparency outlining tracking, storage preferences, and Google AdSense
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-zinc-300 space-y-4 text-xs md:text-sm leading-relaxed">
+                    <p>
+                      This website utilizes lightweight cookies and local storage tokens to personalize your structural experience and gather general optimization metadata.
+                    </p>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      1. Essential Performance Cookies
+                    </h3>
+                    <p>
+                      These items are critical for key interactive features. They store active parameters, including bookmarks list coordinates, favorite music play states, specific card canvas colors, and panel toggles inside localStorage. They remain strictly on your side and do not transmit tracking metrics.
+                    </p>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      2. Analytical Tracking Cookies
+                    </h3>
+                    <p>
+                      We integrate Google Analytics to track general website performance. These cookies record your device screen configurations, site speed times, navigation pathways, and general geographical metrics so we can deliver optimal speeds and avoid container crashes.
+                    </p>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      3. Future Google AdSense Advertising Cookies
+                    </h3>
+                    <p>
+                      To support creative operations, this application integrates Google AdSense verification routines. Google uses cookies (including DoubleClick cookies) to serve targeted, customized ads based on your general browsing patterns across various web portals.
+                    </p>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      4. Cookie Consent Controls
+                    </h3>
+                    <p>
+                      You retain full control over tracking cookies. You can configured your personal browser settings to refuse third-party advertising cookies or block tracking parameters entirely. Note that blocking essential cookies may restrict certain features (like saved bookmarks) from working correctly.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* 6. DISCLAIMER */}
+              {activePath === '/disclaimer' && (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3 border-b border-white/5 pb-4 select-none">
+                    <span className="w-10 h-10 rounded-xl bg-red-950/30 border border-red-500/20 text-red-500 flex items-center justify-center">
+                      <AlertTriangle size={20} />
+                    </span>
+                    <div>
+                      <h2 className="text-lg font-black font-sans tracking-wide text-white uppercase leading-none">
+                        Legal Disclaimer
+                      </h2>
+                      <span className="text-[10px] font-mono text-red-400 uppercase tracking-widest mt-1.5 block">
+                        Content limitations, accuracy, and external link validation
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-zinc-300 space-y-4 text-xs md:text-sm leading-relaxed">
+                    <p>
+                      All content provided on RoyVerse Hub represents creative literature, poetic narratives, and artistic designs. Please read our primary limitations carefully:
+                    </p>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      1. User-Generated Content (UGC)
+                    </h3>
+                    <p>
+                      A substantial portion of the poetry, emotional thoughts, shayari, and graphics is submitted by independent community members. RoyVerse Hub does not claim absolute, real-time accuracy, validation, or compliance for these user-generated expressions. Views expressed represent the authors alone.
+                    </p>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      2. Poetic & Emotional Intent
+                    </h3>
+                    <p>
+                      While RoyVerse Hub features rich literature about heartbreak, sadness, isolation, and romance, everything here serves an artistic purpose. It is not professional psychoanalysis, medical counsel, or emotional crisis advisory. If you are experiencing rough emotional stages, please reach out to qualified medical professionals.
+                    </p>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      3. External Anchoring & Links
+                    </h3>
+                    <p>
+                      We may reference, list, or redirect to third-party sources (including social media channels, Telegram groups, or content creators). We hold zero liability for the privacy parameters, policies, or material hosted on external websites.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* 7. DMCA Policy */}
+              {activePath === '/dmca-policy' && (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3 border-b border-white/5 pb-4 select-none">
+                    <span className="w-10 h-10 rounded-xl bg-red-950/30 border border-red-500/20 text-red-500 flex items-center justify-center">
+                      <ShieldAlert size={20} />
+                    </span>
+                    <div>
+                      <h2 className="text-lg font-black font-sans tracking-wide text-white uppercase leading-none">
+                        DMCA & Copyright Policy
+                      </h2>
+                      <span className="text-[10px] font-mono text-red-400 uppercase tracking-widest mt-1.5 block">
+                        Intellectual property protections & systematic takedown requests
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-zinc-300 space-y-4 text-xs md:text-sm leading-relaxed">
+                    <p>
+                      RoyVerse Hub deeply respects the creative rights of painters, lyricists, publishers, and authors. If you are the legal copyright owner of any poetry material distributed on our platform and did not consent to its publication, you have the absolute legal right to submit a rapid takedown notice.
+                    </p>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      Required Copyright Complaint Criteria
+                    </h3>
+                    <p>
+                      To process a compliant copyright removal notice, your email must include:
+                    </p>
+                    <ul className="list-decimal pl-5 space-y-1.5 text-zinc-400 mt-1">
+                      <li>Your official legal name, contact email address, and physical signature.</li>
+                      <li>The target URL(s) containing the exact copyrighted material on RoyVerse Hub.</li>
+                      <li>Evidence or documentation verifying your copyright ownership of the disputable lines.</li>
+                      <li>A statement made under penalty of perjury that the information in your report is entirely accurate.</li>
+                    </ul>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      Submission Connection
+                    </h3>
+                    <p>
+                      Transmit your completed DMCA notice to Founder Ritik Rai at <a href="mailto:roynoruless@gmail.com" className="text-red-500 font-bold hover:underline">roynoruless@gmail.com</a>. We investigate all complete reports and commit to permanently removing any infringing data within 24 hours of notification.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* 8. Community Guidelines */}
+              {activePath === '/community-guidelines' && (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3 border-b border-white/5 pb-4 select-none">
+                    <span className="w-10 h-10 rounded-xl bg-red-950/30 border border-red-500/20 text-red-500 flex items-center justify-center">
+                      <CheckCircle2 size={20} />
+                    </span>
+                    <div>
+                      <h2 className="text-lg font-black font-sans tracking-wide text-white uppercase leading-none">
+                        Community Standards
+                      </h2>
+                      <span className="text-[10px] font-mono text-red-400 uppercase tracking-widest mt-1.5 block">
+                        Code of honor, respectful engagement, and plagiarist curbs
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-zinc-300 space-y-4 text-xs md:text-sm leading-relaxed">
+                    <p>
+                      RoyVerse Hub represents a shared, respectful space for creative and emotional expression. To preserve the high quality of our digital environment, each member must follow these guidelines:
+                    </p>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      1. Respect of Other Artistic Minds
+                    </h3>
+                    <p>
+                      Be kind, supportive, and constructively helpful. We absolute prohibit any shape of cyberbully, racist speech, political hate, sexism, or targeted harassment. Constructive critiques are welcome, but direct insult lines will trigger bans.
+                    </p>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      2. No Plagiarism or Spamming
+                    </h3>
+                    <p>
+                      Do not copy-paste other contemporary writers' published material without correct attribution, source reference, and appropriate licensing credits. In addition, do not flood our server index with duplicate, repetitive, or blank lines.
+                    </p>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      3. Cyber Security Discipline
+                    </h3>
+                    <p>
+                      Do not utilize scripts, automation macros, scraping tools, or brute-forcing vectors to bypass server restrictions. Any algorithmic testing of our database endpoints will land your IP into permanent firewall ban records.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* 9. Content Moderation Policy */}
+              {activePath === '/content-moderation' && (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3 border-b border-white/5 pb-4 select-none">
+                    <span className="w-10 h-10 rounded-xl bg-red-950/30 border border-red-500/20 text-red-500 flex items-center justify-center">
+                      <XOctagon size={20} />
+                    </span>
+                    <div>
+                      <h2 className="text-lg font-black font-sans tracking-wide text-white uppercase leading-none">
+                        Content Moderation
+                      </h2>
+                      <span className="text-[10px] font-mono text-red-400 uppercase tracking-widest mt-1.5 block">
+                        Vetting pipeline, submission approvals, and quality control
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-zinc-300 space-y-4 text-xs md:text-sm leading-relaxed">
+                    <p>
+                      Every submission sent through the RoyVerse Hub portal undergoes rigorous review. Learn how we maintain raw quality standards:
+                    </p>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      1. Systematic Moderation Pipeline
+                    </h3>
+                    <p>
+                      When a user publishes a Shayari block, it gets placed in the pending review list (`pendingList`). Our manual moderation team evaluates the text for formatting alignments, spell checking, poetics, and safety compliance.
+                    </p>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      2. Safe Content Criteria
+                    </h3>
+                    <p>
+                      Submissions are immediately flagged and rejected if they contain:
+                    </p>
+                    <ul className="list-disc pl-5 text-zinc-400 space-y-1 mt-1">
+                      <li>Self-harm references, explicit sexual material, or violent statements.</li>
+                      <li>Gibberish text blocks, repetitive keywords, or empty submissions.</li>
+                      <li>Aggressive political slander, religious disputes, or racial slurs.</li>
+                    </ul>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      3. Transparency in Logs
+                    </h3>
+                    <p>
+                      Approved items are pushed live instantly and posted in our feeds. Clear logs of approved and rejected items are safely organized and printable inside the administrator dashboard.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* 10. Data Deletion Policy */}
+              {activePath === '/data-deletion' && (
+                <div className="space-y-6">
+                  <div className="flex items-center gap-3 border-b border-white/5 pb-4 select-none">
+                    <span className="w-10 h-10 rounded-xl bg-red-950/30 border border-red-500/20 text-red-500 flex items-center justify-center">
+                      <Trash2 size={20} />
+                    </span>
+                    <div>
+                      <h2 className="text-lg font-black font-sans tracking-wide text-white uppercase leading-none">
+                        Data Deletion Policy
+                      </h2>
+                      <span className="text-[10px] font-mono text-red-400 uppercase tracking-widest mt-1.5 block">
+                        Permanent profile wipes, content requests, and cache resetting
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-zinc-300 space-y-4 text-xs md:text-sm leading-relaxed">
+                    <p>
+                      We fully support your right to digital privacy. You hold absolute control over any creative records, account values, or cookies compiled by RoyVerse Hub.
+                    </p>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      1. Instantly Clearing Local Preferences & Bookmarks
+                    </h3>
+                    <p>
+                      If you want to remove bookmarked Shayari, favorites, customized sound settings, or active layouts from your current device browser, click on the "Settings" tab in your profile dashboard and hit "Reset Application Cache". This completely wipes all client storage items instantly.
+                    </p>
+
+                    <h3 className="text-xs font-black font-mono tracking-widest uppercase text-white mt-6 mb-2 border-l-2 border-red-500 pl-2.5">
+                      2. Permanent Server Deletion Requests
+                    </h3>
+                    <p>
+                      If you want to permanently erase your registered contributor account, submitted Shayari, message logs, or personal ticketing records from our server database, simply drop an official deletion request email to:
+                    </p>
+                    <div className="p-4 bg-zinc-900/30 border border-red-500/20 text-center rounded-xl select-text">
+                      <span className="text-[10px] font-mono text-zinc-400 block">SEND RETRACT DELETION REQUEST TO</span>
+                      <a href="mailto:roynoruless@gmail.com" className="text-md font-black text-white hover:underline mt-0.5 block">
+                        roynoruless@gmail.com
+                      </a>
+                    </div>
+                    <p>
+                      No questions asked. Once we receive and verify your ownership request, all submitted servers, records, backups, and credentials will be permanently erased from our disk partitions inside 12 hours.
+                    </p>
                   </div>
                 </div>
               )}
@@ -600,14 +891,14 @@ export default function TrustPages({ activePath, onNavigate, onClose }: TrustPag
       </div>
 
       {/* 3. TRUST FOOTER PRESETS inside page overlay */}
-      <div className="p-6 bg-black border-t border-white/5 select-none shrink-0 mt-auto text-center space-y-2">
-        <p className="text-[9.5px] font-mono text-zinc-650 uppercase tracking-[0.15em]">
-          OFFICIAL VERIFIED CRYPTOGRAPHIC IDENTITY CARD INDEX
+      <div className="p-6 bg-zinc-950 border-t border-white/5 select-none shrink-0 mt-auto text-center space-y-2">
+        <p className="text-[9.5px] font-mono text-zinc-600 uppercase tracking-[0.15em]">
+          OFFICIAL GENERAL DATA PROTECTION REGULATION (GDPR) VERIFIED SYSTEM INDEX
         </p>
         <div className="flex flex-wrap items-center justify-center gap-4 text-[10px] text-zinc-500 max-w-md mx-auto">
           <span>🛡️ SSL SECURED</span>
-          <span>🔒 DMCA PROTECTED </span>
-          <span>⚡ GOOGLE ADSENSE READY</span>
+          <span>🔒 DMCA COMPLIANT</span>
+          <span>⚡ GOOGLE ADSENSE PREPARED</span>
         </div>
       </div>
 

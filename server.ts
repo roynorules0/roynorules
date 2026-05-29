@@ -25,6 +25,28 @@ const PORT = 3000;
 
 app.use(express.json());
 
+// Native CORS and core production security headers middleware
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  
+  // Security Headers (Requirement 11)
+  res.setHeader('Content-Security-Policy', "default-src 'self' https: data: 'unsafe-inline' 'unsafe-eval'; style-src 'self' https: 'unsafe-inline'; font-src 'self' https: data:; img-src 'self' https: data:; media-src 'self' https: data:; connect-src 'self' https:;");
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  
+  if (process.env.NODE_ENV === 'production' && !req.headers.host?.includes('asia-southeast1.run.app')) {
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  }
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
+
 // Search Console Verification
 app.get('/google59b50fef3e93f851.html', (req, res) => {
   res.setHeader('Content-Type', 'text/html');
@@ -1133,7 +1155,10 @@ async function startServer() {
         const protocol = req.secure ? 'https' : 'http';
         const html = generateSeoHtml(template, url, host, protocol);
 
-        res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+        res.status(200).set({ 
+          'Content-Type': 'text/html',
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
+        }).end(html);
       } catch (e) {
         vite.ssrFixStacktrace(e as Error);
         next(e);
@@ -1170,7 +1195,10 @@ async function startServer() {
         const protocol = req.secure ? 'https' : 'http';
         const html = generateSeoHtml(template, url, host, protocol);
 
-        res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+        res.status(200).set({ 
+          'Content-Type': 'text/html',
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
+        }).end(html);
       } catch (e) {
         console.error('Production serve error:', e);
         res.status(500).send('Internal Server Error');

@@ -62,7 +62,10 @@ export default function App() {
 
   // Trust Page SEO & URL Routing states
   const [currentTrustPath, setCurrentTrustPath] = useState<string | null>(() => {
-    const paths = ['/about-us', '/privacy-policy', '/terms-and-conditions', '/disclaimer', '/contact-us'];
+    const paths = [
+      '/about-us', '/privacy-policy', '/terms-and-conditions', '/disclaimer', '/contact-us',
+      '/cookie-policy', '/dmca-policy', '/community-guidelines', '/content-moderation', '/data-deletion'
+    ];
     return paths.includes(window.location.pathname) ? window.location.pathname : null;
   });
 
@@ -387,24 +390,44 @@ export default function App() {
     if (currentTrustPath) {
       switch (currentTrustPath) {
         case '/about-us':
-          title = 'About Our Sanctuary | Roy No Rules';
-          description = 'Learn about Roy No Rules shayari sanctuary, emotional dark aesthetics, and our community.';
+          title = 'About Us | RoyVerse Hub';
+          description = 'Learn about RoyVerse Hub, the premier community platform for user-generated shayari, poetry, and emotional content founded by Ritik Rai.';
           break;
         case '/privacy-policy':
-          title = 'Privacy Safeguards | Roy No Rules';
-          description = 'Full details on local-first secure client states and cookies privacy policies.';
+          title = 'Privacy Policy | RoyVerse Hub';
+          description = 'Read our comprehensive privacy policy regarding information collection, cookies, Google Analytics, and future AdSense integration.';
           break;
         case '/terms-and-conditions':
-          title = 'Terms & Conditions | Roy No Rules';
-          description = 'Respectful conduct guidelines, copyright standards, and community moderator rules.';
+          title = 'Terms & Conditions | RoyVerse Hub';
+          description = 'Understand the terms of service, user responsibilities, and content submissions code of conduct on RoyVerse Hub.';
           break;
         case '/disclaimer':
-          title = 'Creative Disclaimers | Roy No Rules';
-          description = 'Intellectual property and copyright claims disclaimers for fan-made shayaris.';
+          title = 'Legal Disclaimer | RoyVerse Hub';
+          description = 'Detailed artistic and legal disclaimer regarding user-generated content, accuracy, and external links on RoyVerse Hub.';
+          break;
+        case '/cookie-policy':
+          title = 'Cookie Policy | RoyVerse Hub';
+          description = 'Information about essential, analytics, future Google AdSense, and compliance-driven cookie usage on RoyVerse Hub.';
+          break;
+        case '/dmca-policy':
+          title = 'DMCA & Copyright Policy | RoyVerse Hub';
+          description = 'Learn how to submit copyright complaints and content removal requests on RoyVerse Hub under DMCA rules.';
+          break;
+        case '/community-guidelines':
+          title = 'Community Guidelines | RoyVerse Hub';
+          description = 'Code of human conduct and rules against hate speech, spam, harassment, and plagiarized content on RoyVerse Hub.';
+          break;
+        case '/content-moderation':
+          title = 'Content Moderation Policy | RoyVerse Hub';
+          description = 'Our procedures, standards, and workflow on how community shayari and user submissions are reviewed and moderated.';
+          break;
+        case '/data-deletion':
+          title = 'Data Deletion Policy | RoyVerse Hub';
+          description = 'Request secure, permanent removal of your account, content, and personal files on RoyVerse Hub.';
           break;
         case '/contact-us':
-          title = 'Contact Us Direct | Roy No Rules';
-          description = 'Get in touch with us at +91 9027671630 or email roynoruless@gmail.com for support.';
+          title = 'Contact Us | RoyVerse Hub';
+          description = 'Get in touch with RoyVerse Hub directly at roynoruless@gmail.com or join our official Telegram channel.';
           break;
       }
       canonical = domain + currentTrustPath;
@@ -494,7 +517,10 @@ export default function App() {
         return;
       }
 
-      const trustPaths = ['/about-us', '/privacy-policy', '/terms-and-conditions', '/disclaimer', '/contact-us'];
+      const trustPaths = [
+        '/about-us', '/privacy-policy', '/terms-and-conditions', '/disclaimer', '/contact-us',
+        '/cookie-policy', '/dmca-policy', '/community-guidelines', '/content-moderation', '/data-deletion'
+      ];
       
       const matchedEq = emotionalQuestionPages.find(eq => '/' + eq.slug === path);
       if (matchedEq) {
@@ -1458,9 +1484,9 @@ export default function App() {
               <Compass className="size-6 animate-spin text-red-500" style={{ animationDuration: '6s' }} />
             </div>
             <div className="space-y-1.5">
-              <h4 className="text-sm font-bold tracking-wider text-zinc-300 uppercase font-mono">
+              <h3 className="text-sm font-bold tracking-wider text-zinc-300 uppercase font-mono">
                 No Matched Vibes Found
-              </h4>
+              </h3>
               <p className="text-xs text-zinc-550 max-w-sm mx-auto leading-relaxed">
                 No shayari aligns with your current search context. Try other keywords like 'breakup', 'attitude', 'lonely', or clear your active filters.
               </p>
@@ -1514,26 +1540,31 @@ export default function App() {
           <PremiumAdContainer placement="bottomFeedAd" />
 
           {/* SECTION 2: Premium Footnotes & Legal Directory directly underneath the button */}
-          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 px-4 text-center">
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 px-4 max-w-4xl mx-auto text-center">
             {[
               { path: '/about-us', label: 'About Us' },
+              { path: '/contact-us', label: 'Contact Us' },
               { path: '/privacy-policy', label: 'Privacy Policy' },
-              { path: '/terms-and-conditions', label: 'Terms & Conditions' },
+              { path: '/terms-and-conditions', label: 'Terms' },
+              { path: '/cookie-policy', label: 'Cookie Policy' },
               { path: '/disclaimer', label: 'Disclaimer' },
-              { path: '/contact-us', label: 'Contact Us' }
+              { path: '/dmca-policy', label: 'DMCA Policy' },
+              { path: '/community-guidelines', label: 'Community Guidelines' },
+              { path: '/content-moderation', label: 'Moderation Policy' },
+              { path: '/data-deletion', label: 'Data Deletion' }
             ].map((lnk) => (
               <button
                 key={lnk.path}
                 onClick={() => handleNavigateTrust(lnk.path)}
-                className="text-[10px] font-mono uppercase tracking-widest text-zinc-400 hover:text-red-400 cursor-pointer hover:underline transition duration-200"
+                className="text-[10px] font-mono uppercase tracking-widest text-zinc-500 hover:text-red-500 cursor-pointer hover:underline transition duration-250"
               >
                 {lnk.label}
               </button>
             ))}
           </div>
 
-          <div className="text-[9px] font-mono text-zinc-650 uppercase tracking-widest text-center">
-            © 2026 Roy No Rules • Crafted Independently
+          <div className="text-[9px] font-mono text-zinc-600 uppercase tracking-widest text-center select-none">
+            © 2026 RoyVerse Hub • Creative Autonomy Platform
           </div>
         </div>
 

@@ -180,10 +180,15 @@ export default function MoreMenuModal({
 
               {[
                 { path: '/about-us', label: 'About Us', icon: '📖' },
+                { path: '/contact-us', label: 'Contact Us', icon: '📞' },
                 { path: '/privacy-policy', label: 'Privacy Policy', icon: '🔒' },
                 { path: '/terms-and-conditions', label: 'Terms & Conditions', icon: '⚖️' },
+                { path: '/cookie-policy', label: 'Cookie Policy', icon: '🍪' },
                 { path: '/disclaimer', label: 'Disclaimer', icon: '📢' },
-                { path: '/contact-us', label: 'Contact Us', icon: '📞' }
+                { path: '/dmca-policy', label: 'DMCA Policy', icon: '🚀' },
+                { path: '/community-guidelines', label: 'Community Rules', icon: '🤝' },
+                { path: '/content-moderation', label: 'Moderation Policy', icon: '🛡️' },
+                { path: '/data-deletion', label: 'Data Deletion', icon: '🗑' }
               ].map((item) => (
                 <button
                   key={item.path}
@@ -203,8 +208,8 @@ export default function MoreMenuModal({
 
           <div className="hidden md:block pt-4 border-t border-zinc-900/50 space-y-3.5">
             <PremiumAdContainer placement="sidebarAd" />
-            <span className="text-[9px] font-mono text-zinc-650 leading-normal block">
-              Roy No Rules Portal<br/>v3.2.0 Cinematic Edition
+            <span className="text-[9px] font-mono text-zinc-655 leading-normal block">
+              RoyVerse Hub Portal<br/>v4.0.0 Cinematic Edition
             </span>
           </div>
         </div>
